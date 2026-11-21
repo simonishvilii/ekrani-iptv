@@ -3,7 +3,7 @@
   'use strict';
   var K = U.KEY;
 
-  var VERSION = '1.3.17';
+  var VERSION = '1.3.18';
 
   var NAV = [
     { id: 'live', icon: 'live', screen: function () { return Live; } },
@@ -245,33 +245,6 @@
     });
   }
 
-  /* start-up: the live picture is on; offer to go back (archive) to the moment watched last */
-  function offerResume(w) {
-    var ch = w && w.key ? Data.channel(w.key) : null;
-    var now = Date.now();
-    if (!ch || !ch.catchup || !w.t || now - w.t < 90000) return;   // stopped a moment ago: live is the same picture
-    var prog = w.prog && w.prog.s <= w.t && w.t < w.prog.e ? w.prog : null;
-    if (!prog) {
-      // no guide at that time: a three-hour archive window starting just before the moment
-      var s = Math.floor((w.t - 60000) / 60000) * 60000;
-      prog = { s: s, e: s + 3 * 3600000, t: '' };
-    }
-    if (!Data.canCatchup(ch, prog)) return;
-    var title = prog.t || ch.name;
-    var at = U.dayLabel(w.t) + ', ' + U.hhmm(w.t);
-    var ask = Modal.confirm(I18n.t('resume_q').replace('{t}', title).replace('{at}', at), I18n.t('resume_yes'), I18n.t('resume_no'));
-    // left unanswered: closes by itself, the live picture stays
-    var d = Modal.top();
-    var t = setTimeout(function () { if (Modal.top() === d && d) d.cancel(); }, 30000);
-    ask.then(function (yes) {
-      clearTimeout(t);
-      if (!yes) return;
-      App.checkLock(ch.group).then(function (ok) {
-        if (ok) Player.resumeAt(ch, { s: prog.s, e: prog.e, t: prog.t || ch.name, d: '' }, w.t);
-      });
-    });
-  }
-
   function dropScreen() {
     if (curScreen) { curScreen.blur(); curScreen.hide(); }
     curScreen = null;
@@ -367,7 +340,6 @@
       sessionUnlocked = {};
       if (!Store.active()) { welcome(); return Promise.resolve(); }
       var busy = Modal.busy(I18n.t('loading_playlist'));
-      var watched = boot ? Store.watch() : null;   // read before the live picture saves over it
       return Data.load(force).then(function () {
         App.bootMark('data');
         busy.close();
@@ -377,7 +349,6 @@
         App.bootMark('ui');
         if (Store.get('autoplay')) Live.playLast();
         Player.dropWarm();
-        if (watched) offerResume(watched);
       }).catch(function (e) {
         busy.close();
         Player.dropWarm();

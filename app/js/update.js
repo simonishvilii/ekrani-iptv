@@ -54,7 +54,7 @@
       later(EVERY);
       return;
     }
-    Modal.confirm(I18n.t('upd_q').replace('{v}', r.version), I18n.t('resume_yes'), I18n.t('resume_no')).then(function (yes) {
+    Modal.confirm(I18n.t('upd_q').replace('{v}', r.version), I18n.t('upd_yes'), I18n.t('upd_no')).then(function (yes) {
       if (!yes) { declined[r.version] = true; later(EVERY); return; }
       install(r);
     });

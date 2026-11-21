@@ -45,7 +45,6 @@
       // playback is progressing: make sure the spinner / stall watchdog are off
       if (video.currentTime !== lastT && !video.paused && !spinner.classList.contains('hidden')) setBusy(false);
       lastT = video.currentTime;
-      if (!video.paused) saveWatch(false);
       if (ovState === 'info' && cur && cur.type !== 'live') paintSeek();
     });
     video.addEventListener('ended', function () {
@@ -68,28 +67,6 @@
     }, { passive: false });
     Epg.onUpdate(U.debounce(onEpgUpdate, 300));
     applyAspect();
-  }
-
-  /* remember the moment on screen (every 15 s, and when playback stops / the app is hidden),
-     so the next start can offer to continue from there through the archive */
-  var watchSaved = 0;
-  function saveWatch(force) {
-    if (!cur || !cur.ch || !cur.ch.catchup) return;
-    var now = Date.now();
-    if (!force && now - watchSaved < 15000) return;
-    var o = { key: cur.ch.key, at: now };
-    if (cur.type === 'catchup') {
-      if (!(video.currentTime > 1)) return;   // not started yet (or still seeking to the start point)
-      o.t = Math.round(cur.prog.s + video.currentTime * 1000);
-      o.prog = { s: cur.prog.s, e: cur.prog.e, t: cur.prog.t || '' };
-    } else {
-      if (!video.getAttribute('src') || video.readyState < 2) return;
-      o.t = (video.paused && pausedAt ? pausedAt : now) - 15000;   // the live picture runs a little behind the clock
-      var nn = Epg.nowNext(cur.ch);
-      if (nn.cur) o.prog = { s: nn.cur.s, e: nn.cur.e, t: nn.cur.t || '' };
-    }
-    watchSaved = now;
-    Store.setWatch(o);
   }
 
   /* picture size: remembered per channel, otherwise the global setting */
@@ -867,14 +844,6 @@
       showInfo();
     },
 
-    /* continue at wall-clock moment t of programme prog (archive) */
-    resumeAt: function (ch, prog, t) {
-      var o = contextFor(ch);
-      o.startAt = Math.max(0, (t - prog.s) / 1000);
-      Player.playCatchup(ch, prog, o);
-      if (Player.onChannelChange) Player.onChannelChange(ch, o.index, o.gid);
-    },
-
     full: function () {
       if (!cur) return;
       setMode('full');
@@ -900,7 +869,6 @@
     },
 
     stop: function () {
-      saveWatch(true);
       netWait = null;
       warmUrl = null;
       clearTimeout(stallTimer);
@@ -916,7 +884,6 @@
     /* app goes to background / comes back */
     suspend: function () {
       if (!cur) return;
-      saveWatch(true);
       Player._resume = { pos: video.currentTime };
       video.pause();
       if (cur.type === 'live') { video.removeAttribute('src'); try { video.load(); } catch (e) { /* ignore */ } }

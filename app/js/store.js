@@ -134,10 +134,6 @@
       if (!old || old.url !== o.url) save('lastplay_' + pl.id, o);
     },
 
-    /* what was on screen last: {key, t (wall-clock moment of the picture), at, prog {s,e,t}} — offered again at the next start */
-    watch: function () { var pl = Store.active(); return pl ? load('watch_' + pl.id, null) : null; },
-    setWatch: function (o) { var pl = Store.active(); if (pl) save('watch_' + pl.id, o); },
-
     /* VOD resume positions (global for active playlist) */
     positions: function () { return Store.list('pos'); },
     getPos: function (key) {
