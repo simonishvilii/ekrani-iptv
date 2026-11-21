@@ -97,9 +97,11 @@ function writeOta(native) {
   const dir = path.join(root, 'ota');
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, 'app.js'), js);
-  fs.writeFileSync(path.join(dir, 'app.css'), css);
-  const ver = { version: app.version, native: native.h, js: 'app.js', css: 'app.css', jsLen: js.length, cssLen: css.length, date: new Date().toISOString() };
+  // file names carry the version: GitHub's raw CDN caches each path ~5 min, so a new version must not reuse a cached one
+  const jsName = 'app-' + app.version + '.js', cssName = 'app-' + app.version + '.css';
+  fs.writeFileSync(path.join(dir, jsName), js);
+  fs.writeFileSync(path.join(dir, cssName), css);
+  const ver = { version: app.version, native: native.h, js: jsName, css: cssName, jsLen: js.length, cssLen: css.length, date: new Date().toISOString() };
   fs.writeFileSync(path.join(dir, 'version.json'), JSON.stringify(ver, null, 2) + '\n');
   console.log('OTA: ota/ ' + app.version + ' (native ' + native.h + ', ' + Math.round(Buffer.byteLength(js) / 1024) + ' KB JS)');
 }
