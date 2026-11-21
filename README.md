@@ -4,7 +4,7 @@
 ფუნქციებით Televizo-ს მსგავსია, მაგრამ კოდი, დიზაინი და აიქონი სრულიად ახალია.
 APK-ს კოდი გამოყენებული არ არის.
 
-**ვერსია 1.3.22.** პაკეტი იქმნება `npm run build`-ით: `dist/com.ekrani.iptv_1.3.22_all.ipk` (dist/ GitHub-ზე არ იტვირთება).
+**ვერსია 1.3.23.** პაკეტი იქმნება `npm run build`-ით: `dist/com.ekrani.iptv_1.3.23_all.ipk` (dist/ GitHub-ზე არ იტვირთება).
 
 **Android TV:** მზა APK — ტელევიზორის Downloader-ში აკრიფეთ **`is.gd/ekrani`** — [apk/ekrani-iptv.apk](https://raw.githubusercontent.com/simonishvilii/ekrani-iptv/main/apk/ekrani-iptv.apk) (იხ. [1ა](#1ა-android-tv--google-tv-ზე-დაყენება)).
 
@@ -22,7 +22,7 @@ APK-ს კოდი გამოყენებული არ არის.
    - Host: ტელევიზორის IP
    - Passphrase: Developer Mode აპში ნაჩვენები კოდი
 4. აირჩიეთ ტელევიზორი, დააჭირეთ **Install** და მიუთითეთ ფაილი:
-   `dist\com.ekrani.iptv_1.3.22_all.ipk`
+   `dist\com.ekrani.iptv_1.3.23_all.ipk`
 
    ახალი ვერსია ძველს ზემოდან ეყენება, წაშლა საჭირო არ არის.
 5. აპი გამოჩნდება ტელევიზორის აპების სიაში, სახელით **Ekrani IPTV**.

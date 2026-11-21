@@ -34,6 +34,8 @@
         Cache.set(key, { time: Date.now(), url: pl.url, data: data });
         return data;
       }).catch(function (e) {
+        // a playlist file of a test build that a later package no longer has: its last copy, quietly
+        if (c && !/^https?:\/\//i.test(pl.url)) return c.data;
         if (c) { U.toast(I18n.t('load_error') + ': ' + e.message); return c.data; }
         throw e;
       });
