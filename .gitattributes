@@ -1,0 +1,2 @@
+# the over-the-air files are compared by length on the TV: keep them byte for byte
+ota/** -text

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ekrani IPTV</title>
+  <script src="js/boot.js"></script>
+  <script>Boot.css();</script>
+</head>
+<body>
+  <div id="app">
+    <nav id="sidebar"></nav>
+    <main id="screens"></main>
+  </div>
+
+  <!-- the single video element; moved between preview box and fullscreen -->
+  <div id="videoLayer" class="video-layer hidden">
+    <video id="video" preload="auto" playsinline></video>
+    <div id="videoSpinner" class="spinner hidden"></div>
+    <div id="videoMsg" class="video-msg hidden"></div>
+  </div>
+  <div id="playerOverlay" class="player-overlay hidden"></div>
+
+  <div id="modalRoot"></div>
+  <div id="toast" class="toast hidden"></div>
+  <div id="numEntry" class="num-entry hidden"></div>
+  <div id="tvClock" class="tv-clock hidden"></div>
+  <div id="epgBadge" class="epg-badge hidden"></div>
+
+  <!-- the app's scripts: the installed ones, or a downloaded update (js/boot.js) -->
+  <script>Boot.js();</script>
+</body>
+</html>

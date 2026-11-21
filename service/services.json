@@ -1,0 +1,10 @@
+{
+  "id": "com.ekrani.iptv.service",
+  "description": "Ekrani IPTV network helper",
+  "services": [
+    {
+      "name": "com.ekrani.iptv.service",
+      "description": "Downloads playlists and EPG without browser CORS limits"
+    }
+  ]
+}
