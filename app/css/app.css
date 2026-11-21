@@ -65,7 +65,7 @@ body.fullscreen #app { visibility: hidden; }
 .nav-item.current { color: var(--text); }
 .nav-item.current::before { content: ''; position: absolute; left: -1.2rem; top: 1.6rem; bottom: 1.6rem; width: .5rem; border-radius: .3rem; background: var(--accent); }
 .nav-item.focused { background: var(--accent); color: #fff; }
-.clock { margin-top: auto; text-align: center; font-size: 2.4rem; font-weight: 600; color: var(--muted); }
+.clock { margin-top: auto; text-align: center; font-size: 2.4rem; font-weight: 400; color: var(--muted); }
 
 #screens { position: absolute; left: 9rem; right: 0; top: 0; bottom: 0; }
 .screen { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; padding: 3.2rem 3.6rem 3rem 2.6rem; }
@@ -165,7 +165,7 @@ body.fullscreen #app { visibility: hidden; }
 .ib-name { font-size: 3.2rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ib-prog { font-size: 2.4rem; margin-top: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ib-next { font-size: 2rem; color: var(--muted); margin-top: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ib-clock { font-size: 3.2rem; font-weight: 600; color: var(--muted); }
+.ib-clock { font-size: 3.2rem; font-weight: 400; color: var(--muted); }
 .seek { display: flex; align-items: center; margin-top: 1.6rem; }
 .seek .bar { flex: 1; height: 1rem; margin: 0; border-radius: .5rem; cursor: pointer; }
 .seek-t { font-size: 2.2rem; min-width: 9rem; text-align: center; color: #c9d1df; }
@@ -199,7 +199,7 @@ body.fullscreen #app { visibility: hidden; }
 .seekbar b, .seekbar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: .5rem; }
 .seekbar b { background: rgba(255, 255, 255, .28); }
 .seekbar i { display: block; height: auto; background: var(--accent2); }
-.tv-clock { position: fixed; top: 3.6rem; right: 5rem; z-index: 70; font-size: 3.6rem; font-weight: 700; color: #fff; padding: .6rem 2rem; border-radius: 1.2rem; background: rgba(10, 14, 22, .55); text-shadow: 0 .2rem .6rem rgba(0, 0, 0, .8); display: none; }
+.tv-clock { position: fixed; top: 3.6rem; right: 5rem; z-index: 70; font-size: 3.2rem; font-weight: 400; color: rgba(255, 255, 255, .72); padding: .5rem 1.8rem; border-radius: 1.2rem; background: rgba(10, 14, 22, .35); text-shadow: 0 .1rem .3rem rgba(0, 0, 0, .5); display: none; }
 body.fullscreen .tv-clock:not(.hidden) { display: block; }
 .epg-badge { position: fixed; right: 3rem; bottom: 2.4rem; z-index: 70; width: 22rem; padding: 1rem 1.4rem; border-radius: 1rem; background: rgba(10, 14, 22, .9); font-size: 1.7rem; color: #c9d1df; }
 .epg-badge i { display: block; height: .5rem; margin-top: .6rem; border-radius: .3rem; background: rgba(255, 255, 255, .14); overflow: hidden; }
