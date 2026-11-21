@@ -3,7 +3,7 @@
   'use strict';
   var K = U.KEY;
 
-  var VERSION = '1.3.18';
+  var VERSION = '1.3.19';
 
   var NAV = [
     { id: 'live', icon: 'live', screen: function () { return Live; } },
@@ -135,9 +135,12 @@
     }
 
     if (Player.mode() === 'full') {
-      if (k === K.LONG_OK) k = K.ENTER;
-      return Player.handleKey({ keyCode: k });
+      // long OK: the player menu; where the player has none (archive lists), it is a plain OK
+      if (Player.handleKey({ keyCode: k })) return true;
+      return k === K.LONG_OK ? Player.handleKey({ keyCode: K.ENTER }) : false;
     }
+    // the remote's guide button (Android remotes)
+    if (k === K.GUIDE) { App.show('guide'); return true; }
 
     if (inSidebar) {
       switch (k) {

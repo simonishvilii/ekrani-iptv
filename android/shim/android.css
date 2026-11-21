@@ -1,0 +1,9 @@
+/* Ekrani IPTV on Android: the video is a native view under the page (see android.js).
+   The page is transparent; #ekHole paints the background everywhere except where the video layer is. */
+html.android, html.android body { background: transparent !important; }
+#ekHole { position: fixed; left: -10px; top: -10px; width: 0; height: 0; z-index: -1; pointer-events: none; border-radius: 1.6rem; box-shadow: 0 0 0 300vmax var(--bg); }
+html.android body.fullscreen #ekHole { display: none; }
+html.android .video-layer { background: transparent !important; }
+html.android #video { display: none !important; }
+html.ek-preview .preview-box { background: transparent !important; }
+html.ek-preview .preview-ph { visibility: hidden; }

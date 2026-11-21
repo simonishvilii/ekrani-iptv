@@ -626,6 +626,24 @@
     }
   }
 
+  /* long OK / Menu in fullscreen: everything the colour buttons do, for remotes that only have arrows and OK */
+  function playerMenu() {
+    if (!cur) return;
+    var acts = cur.type === 'live'
+      ? ['list', 'groups', 'epg', 'fav', 'last', 'audio', 'subs', 'aspect', 'rewind', 'restart', 'guide']
+      : ['audio', 'subs', 'aspect', 'restart'];
+    if (cur.type === 'catchup') acts = ['golive', 'epg', 'list'].concat(acts);
+    if (!cur.ch || !cur.ch.catchup) acts = acts.filter(function (a) { return cur.type !== 'live' || (a !== 'rewind' && a !== 'restart'); });
+    var icons = { list: 'list', groups: 'folder', epg: 'archive', fav: 'star', last: 'left', guide: 'guide', rewind: 'rewind', restart: 'rewind', golive: 'live', audio: 'play', subs: 'list', aspect: 'tv' };
+    var items = acts.map(function (a) {
+      var label = a === 'golive' ? I18n.t('back_to_live') : actLabel(a);
+      if (a === 'fav' && cur.ch && Store.isFav('live', cur.ch.key)) label += ' ★';
+      return { label: label, icon: icons[a] || '', value: a };
+    });
+    hideOverlay();
+    Modal.menu(cur.ch ? cur.ch.name : '', items).then(function (a) { if (a) runAction(a); });
+  }
+
   /* keys while a list / programme panel is open */
   function overlayKey(k) {
     if (!ovList) return false;
@@ -907,9 +925,11 @@
       if (mode !== 'full' || !cur) return false;
       var k = e.keyCode;
 
-      if (ovList && (ovState === 'list' || ovState === 'groups' || ovState === 'epg')) return overlayKey(k);
+      if (ovList && (ovState === 'list' || ovState === 'groups' || ovState === 'epg')) return overlayKey(k === K.LONG_OK ? K.ENTER : k);
 
       if (k === K.INFO) { runAction('info'); return true; }
+      if (k === K.LONG_OK) { playerMenu(); return true; }
+      if (k === K.GUIDE) { runAction('guide'); return true; }
       var btn = buttonName(k);
 
       if (cur.type === 'live') {

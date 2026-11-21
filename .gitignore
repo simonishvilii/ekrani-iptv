@@ -4,3 +4,11 @@ dist/
 .claude/
 *.apk
 *.ipk
+# Android: generated / local files (the web app is copied into assets by tools/build-android.js)
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/assets/
+# the published APK (install link and in-app updates) is the one exception to *.apk
+!apk/ekrani-iptv.apk

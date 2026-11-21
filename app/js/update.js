@@ -19,11 +19,63 @@
 
   function later(ms) { clearTimeout(timer); timer = setTimeout(check, ms); }
 
+  /* ---------- Android: the app itself (APK) ---------- */
+  var AND = window.EkraniAndroid || null;
+  var APK_INFO = 'https://raw.githubusercontent.com/simonishvilii/ekrani-iptv/main/apk/android.json';
+
+  /* a newer APK than this one, or null */
+  function apkCheck() {
+    if (!AND) return Promise.resolve(null);
+    return Net.text(APK_INFO + '?t=' + Date.now(), { timeout: 30000 }).then(function (t) {
+      var a = JSON.parse(t);
+      return a && a.code > AND.code && a.apk ? a : null;
+    })['catch'](function (e) { console.warn('apk check failed', e); return null; });
+  }
+
+  function offerApk(a, manual) {
+    if (declined['apk' + a.code] && !manual) { later(EVERY); return; }
+    Modal.confirm(I18n.t('upd_apk_q').replace('{v}', a.name), I18n.t('upd_yes'), I18n.t('upd_no')).then(function (yes) {
+      if (!yes) { declined['apk' + a.code] = true; later(EVERY); return; }
+      installApk(a);
+    });
+  }
+
+  function installApk(a) {
+    var bz = Modal.busy(I18n.t('upd_loading'));
+    function done(alertText) {
+      window.removeEventListener('ekapk', on);
+      bz.close();
+      if (alertText) Modal.alert(I18n.t('upd_title'), U.esc(alertText));
+      later(EVERY);
+    }
+    function on(ev) {
+      var o = ev.detail || {};
+      switch (o.st) {
+        case 'progress': bz.text(I18n.t('upd_loading') + ' ' + Math.round((o.p || 0) * 100) + '%'); break;
+        case 'perm': done(I18n.t('upd_apk_perm')); break;
+        case 'old': done(I18n.t('upd_apk_old')); break;
+        case 'install': done(); U.toast(I18n.t('upd_apk_install'), 5000); break;
+        case 'error': done(I18n.t('upd_failed') + (o.msg ? ': ' + o.msg : '')); break;
+      }
+    }
+    window.addEventListener('ekapk', on);
+    AND.installApk(a.apk);
+  }
+
   /* manual: from Settings — always answers, also "you have the latest" */
   function check(manual) {
     if (busy) return;
     busy = true;
     if (manual === true) U.toast(I18n.t('upd_checking'));
+    apkCheck().then(function (a) {
+      if (!a) return checkOta(manual);
+      busy = false;
+      if (!quiet()) { later(60000); return; }
+      offerApk(a, manual === true);
+    });
+  }
+
+  function checkOta(manual) {
     fetchText('version.json').then(function (t) {
       var r = JSON.parse(t);
       busy = false;
@@ -46,6 +98,12 @@
     var b = boot();
     // parts the update cannot change (TV service, icons, fonts…) differ: only a new install from the PC helps
     if (!b.native.h || r.native !== b.native.h) {
+      // Android: it comes with the next APK (checked first, see check)
+      if (AND) {
+        if (manual) U.toast(I18n.t('upd_latest') + ' (' + App.version + ')', 3000);
+        later(EVERY);
+        return;
+      }
       var seen = Store.get('updNative');
       if (seen !== r.version || manual) {
         Store.set('updNative', r.version);
@@ -86,6 +144,9 @@
     start: function () { later(FIRST); },
     check: check,
     /* version shown in Settings */
-    label: function () { var b = boot(); return App.version + (b.ota ? ' (' + I18n.t('upd_ota') + ')' : ''); }
+    label: function () {
+      var b = boot();
+      return App.version + (b.ota ? ' (' + I18n.t('upd_ota') + ')' : '') + (AND ? ' · Android ' + AND.name : '');
+    }
   };
 })();

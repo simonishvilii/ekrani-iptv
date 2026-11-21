@@ -8,7 +8,7 @@
     CH_UP: 33, CH_DOWN: 34,
     RED: 403, GREEN: 404, YELLOW: 405, BLUE: 406,
     PLAY: 415, PAUSE: 19, PLAYPAUSE: 179, STOP: 413, FF: 417, RW: 412,
-    INFO: 457,
+    INFO: 457, GUIDE: 458,
     LONG_OK: 10013 /* synthetic: OK held for 0.7 s */
   };
 

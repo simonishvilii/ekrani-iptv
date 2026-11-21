@@ -5,6 +5,7 @@
  * comments/whitespace removed: a smaller package and less for the TV to parse at every start.
  * Then it is packaged with the official LG CLI (ares-package from @webos-tools/cli).
  *   node tools/build.js --stage   only prepares build/app (to test it: node tools/dev-server.js 8124 build/app)
+ *   --no-ota                      leaves ota/ as it is (used by tools/build-android.js)
  * It also writes ota/ (pushed to GitHub): the app's JS and CSS as one file each plus version.json.
  * The TV checks ota/version.json and offers the update (app/js/update.js, app/js/boot.js).
  * "native" in version.json is a hash of what an update cannot replace (the service, index.html, boot.js,
@@ -82,7 +83,7 @@ async function prepare() {
     before += Buffer.byteLength(text); after += Buffer.byteLength(out);
   }
   console.log('JS/CSS: ' + Math.round(before / 1024) + ' KB -> ' + Math.round(after / 1024) + ' KB');
-  writeOta(native);
+  if (!process.argv.includes('--no-ota')) writeOta(native);
 }
 
 /* ota/: everything boot.js loads, in its order, as one JS file + the CSS (font paths made relative to index.html) */
