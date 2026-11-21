@@ -6,7 +6,7 @@ APK-ს კოდი გამოყენებული არ არის.
 
 **ვერსია 1.3.20.** პაკეტი იქმნება `npm run build`-ით: `dist/com.ekrani.iptv_1.3.20_all.ipk` (dist/ GitHub-ზე არ იტვირთება).
 
-**Android TV:** მზა APK — [apk/ekrani-iptv.apk](https://raw.githubusercontent.com/simonishvilii/ekrani-iptv/main/apk/ekrani-iptv.apk) (იხ. [1ა](#1ა-android-tv--google-tv-ზე-დაყენება)).
+**Android TV:** მზა APK — ტელევიზორის Downloader-ში აკრიფეთ **`is.gd/ekrani`** — [apk/ekrani-iptv.apk](https://raw.githubusercontent.com/simonishvilii/ekrani-iptv/main/apk/ekrani-iptv.apk) (იხ. [1ა](#1ა-android-tv--google-tv-ზე-დაყენება)).
 
 აპი განახლებებს თავად ამოწმებს ამ რეპოზიტორიიდან (`ota/`) — იხ. [განახლებები](#განახლებები).
 
@@ -38,8 +38,8 @@ APK-ს კოდი გამოყენებული არ არის.
 
 1. ტელევიზორზე Google Play-დან დააყენეთ აპი **Downloader** (AFTVnews).
 2. ნება დართეთ უცნობი წყაროებიდან დაყენებას: **Settings → Apps → Security / Special app access → Install unknown apps → Downloader → ON** (Xiaomi/TCL-ზე მენიუს სახელები ცოტა განსხვავდება).
-3. Downloader-ში ჩაწერეთ ბმული:
-   `https://raw.githubusercontent.com/simonishvilii/ekrani-iptv/main/apk/ekrani-iptv.apk`
+3. Downloader-ში ჩაწერეთ მოკლე ბმული **`is.gd/ekrani`**
+   (სრული ბმული: `https://raw.githubusercontent.com/simonishvilii/ekrani-iptv/main/apk/ekrani-iptv.apk`).
    ჩამოტვირთვის შემდეგ დააჭირეთ **Install**.
 4. აპი გამოჩნდება აპების სიაში სახელით **Ekrani IPTV**.
 
