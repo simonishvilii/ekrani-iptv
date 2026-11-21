@@ -52,6 +52,7 @@
   var activeId = load('active', playlists.length ? playlists[0].id : null);
 
   var Store = {
+    LOCAL_ID: 'plocal',
     get: function (k) { return settings[k]; },
     set: function (k, v) { settings[k] = v; save('settings', settings); },
     def: function (k) { return DEFAULTS[k]; },
@@ -75,6 +76,8 @@
       return pl;
     },
     deletePlaylist: function (id) {
+      // the playlist file shipped with a test build (App: addLocalPlaylist) is never added again
+      if (id === Store.LOCAL_ID) Store.set('localPlGone', true);
       playlists = playlists.filter(function (p) { return p.id !== id; });
       save('playlists', playlists);
       ['fav_live_', 'fav_movie_', 'fav_series_', 'recent_', 'locked_', 'last_', 'chedit_', 'chorder_', 'chaspect_', 'chaudio_', 'reminders_', 'watch_', 'lastplay_'].forEach(function (k) {

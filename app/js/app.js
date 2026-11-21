@@ -3,7 +3,7 @@
   'use strict';
   var K = U.KEY;
 
-  var VERSION = '1.3.21';
+  var VERSION = '1.3.22';
 
   var NAV = [
     { id: 'live', icon: 'live', screen: function () { return Live; } },
@@ -233,7 +233,7 @@
       { id: 'pass', label: I18n.t('pl_pass'), type: 'password', value: pl.pass || '', visible: function (v) { return v.type === 'xtream'; } },
       { id: 'epg', label: I18n.t('pl_epg'), value: pl.epg || '', placeholder: I18n.t('epg_sources_hint') }
     ], function (v) {
-      if (v.type === 'm3u' && !/^https?:\/\//i.test(v.url || '')) return I18n.t('fill_required');
+      if (v.type === 'm3u' && !/^https?:\/\//i.test(v.url || '') && v.url !== LOCAL_PL) return I18n.t('fill_required');
       if (v.type === 'xtream' && (!v.server || !v.user || !v.pass)) return I18n.t('fill_required');
       return null;
     }).then(function (v) {
@@ -251,6 +251,17 @@
   function dropScreen() {
     if (curScreen) { curScreen.blur(); curScreen.hide(); }
     curScreen = null;
+  }
+
+  /* test builds: a playlist file shipped inside the package (app/local/playlist.m3u8; git-ignored, never in the
+     published APK or ota/). It is added once; deleted in Settings, it is never added again (the package is read-only). */
+  var LOCAL_PL = 'local/playlist.m3u8';
+  function addLocalPlaylist() {
+    if (Store.get('localPlGone') || Store.playlist(Store.LOCAL_ID)) return Promise.resolve();
+    return Net.text(LOCAL_PL, { timeout: 5000 }).then(function (t) {
+      if (!/^\s*#EXTM3U/.test(t || '')) return;
+      Store.savePlaylist({ id: Store.LOCAL_ID, type: 'm3u', name: 'tv.team (' + I18n.t('pl_file') + ')', url: LOCAL_PL, epg: '' });
+    })['catch'](function () { /* this build has no playlist file */ });
   }
 
   /* first start: the phone QR and "type it on the TV" side by side */
@@ -409,11 +420,15 @@
         document.body.classList.toggle('pointer', !!(e.detail && e.detail.visibility));
       });
 
-      if (!Store.active()) { welcome(); return; }
-      // start the last channel's stream right away; the playlist, guide and screens load meanwhile
-      var lp = Store.get('autoplay') && Store.lastPlay();
-      if (lp && lp.url && lp.key === Store.lastChannel() && !Store.isLocked(lp.group)) Player.warm(lp.url);
-      App.reload(false, true);
+      function go() {
+        if (!Store.active()) { welcome(); return; }
+        // start the last channel's stream right away; the playlist, guide and screens load meanwhile
+        var lp = Store.get('autoplay') && Store.lastPlay();
+        if (lp && lp.url && lp.key === Store.lastChannel() && !Store.isLocked(lp.group)) Player.warm(lp.url);
+        App.reload(false, true);
+      }
+      if (Store.get('localPlGone') || Store.playlist(Store.LOCAL_ID)) go();
+      else addLocalPlaylist().then(go);
     },
 
     /* boot timing (console + Settings → about), to see where start-up time goes on the TV */

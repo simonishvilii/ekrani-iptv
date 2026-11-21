@@ -47,6 +47,7 @@
     });
   }
 
+  function isRemote(url) { return /^https?:\/\//i.test(url); }
   function hostOf(url) { var m = /^https?:\/\/([^\/?#]+)/i.exec(url); return m ? m[1] : ''; }
 
   function xhr(url, timeout) {
@@ -55,7 +56,8 @@
       x.open('GET', url, true);
       x.timeout = timeout || 60000;
       x.onload = function () {
-        if (x.status >= 200 && x.status < 400) resolve(x.responseText);
+        // a file inside the app package (file://) loads with status 0
+        if ((x.status >= 200 && x.status < 400) || (x.status === 0 && !isRemote(url) && x.responseText)) resolve(x.responseText);
         else { var e = new Error('HTTP ' + x.status); e.status = x.status; e.body = x.responseText; reject(e); }
       };
       x.onerror = function () { var e = new Error('network'); e.status = 0; reject(e); };
@@ -70,7 +72,7 @@
   function text(url, opts) {
     opts = opts || {};
     var host = hostOf(url);
-    var hasService = !!window.PalmServiceBridge;
+    var hasService = !!window.PalmServiceBridge && isRemote(url);   // files of the app itself: never the service
     if (hasService && (preferService[host] || looksGz(url))) {
       return viaService(url, opts.onProgress);
     }

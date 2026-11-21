@@ -143,6 +143,9 @@ http.createServer((req, res) => {
   }
   let p = decodeURIComponent(u.pathname);
   if (p === '/') p = '/index.html';
+  // app/local/ holds a private playlist (test builds): only for this computer, not the rest of the network
+  const ra = req.socket.remoteAddress || '';
+  if (/^\/local\//.test(p) && !/^(::1|127\.|::ffff:127\.)/.test(ra)) return send(403, 'text/plain', 'forbidden');
   const file = path.join(ROOT, path.normalize(p));
   if (!file.startsWith(ROOT)) return send(403, 'text/plain', 'forbidden');
   fs.readFile(file, (err, data) => {

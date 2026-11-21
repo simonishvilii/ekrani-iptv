@@ -12,3 +12,5 @@ android/local.properties
 android/app/src/main/assets/
 # the published APK (install link and in-app updates) is the one exception to *.apk
 !apk/ekrani-iptv.apk
+# private playlist shipped only in local test builds (never in git, the published APK or ota/)
+app/local/

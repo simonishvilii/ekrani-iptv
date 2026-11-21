@@ -8,6 +8,7 @@
  * The web app itself is the webOS one: build/app (made by tools/build.js --stage) is copied into the APK's assets
  * with android/shim/ added to index.html. Its JS/CSS keep updating over the air like on webOS (ota/); a new APK is
  * only needed when the Android part (android/) or the parts behind the "native" hash change.
+ * app/local/ (a private playlist, git-ignored) is left out of --publish builds.
  * Needs JDK 17 and the Android SDK: JAVA_HOME / ANDROID_HOME, or the defaults below.
  * Release signing: ~/.ekrani/signing.properties (see android/app/build.gradle.kts). Never commit the key.
  */
@@ -68,6 +69,9 @@ function stageAssets() {
     .replace(css, css + '\n  <link rel="stylesheet" href="android/android.css">');
   fs.writeFileSync(idx, html);
   fs.rmSync(path.join(app, 'appinfo.json'), { force: true });   // webOS only
+  // app/local/ (a private playlist for test builds) never goes into an APK that is published
+  if (args.includes('--publish')) fs.rmSync(path.join(app, 'local'), { recursive: true, force: true });
+  if (fs.existsSync(path.join(app, 'local'))) console.log('Note: app/local/ (private playlist) is inside this APK: do not share it');
 }
 
 function gradleBuild() {
@@ -97,6 +101,7 @@ function main() {
   console.log('\nOK: ' + path.relative(root, out) + ' (' + Math.round(fs.statSync(out).size / 1024) + ' KB), Android ' + v.name + ' (' + v.code + ')');
   if (args.includes('--publish')) {
     if (debug) throw new Error('--publish needs a release build');
+    if (fs.existsSync(path.join(assets, 'app', 'local'))) throw new Error('app/local/ is in the assets: not publishing');
     const dir = path.join(root, 'apk');
     fs.mkdirSync(dir, { recursive: true });
     fs.copyFileSync(out, path.join(dir, 'ekrani-iptv.apk'));

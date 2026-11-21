@@ -4,7 +4,7 @@
 ფუნქციებით Televizo-ს მსგავსია, მაგრამ კოდი, დიზაინი და აიქონი სრულიად ახალია.
 APK-ს კოდი გამოყენებული არ არის.
 
-**ვერსია 1.3.21.** პაკეტი იქმნება `npm run build`-ით: `dist/com.ekrani.iptv_1.3.21_all.ipk` (dist/ GitHub-ზე არ იტვირთება).
+**ვერსია 1.3.22.** პაკეტი იქმნება `npm run build`-ით: `dist/com.ekrani.iptv_1.3.22_all.ipk` (dist/ GitHub-ზე არ იტვირთება).
 
 **Android TV:** მზა APK — ტელევიზორის Downloader-ში აკრიფეთ **`is.gd/ekrani`** — [apk/ekrani-iptv.apk](https://raw.githubusercontent.com/simonishvilii/ekrani-iptv/main/apk/ekrani-iptv.apk) (იხ. [1ა](#1ა-android-tv--google-tv-ზე-დაყენება)).
 
@@ -22,7 +22,7 @@ APK-ს კოდი გამოყენებული არ არის.
    - Host: ტელევიზორის IP
    - Passphrase: Developer Mode აპში ნაჩვენები კოდი
 4. აირჩიეთ ტელევიზორი, დააჭირეთ **Install** და მიუთითეთ ფაილი:
-   `dist\com.ekrani.iptv_1.3.21_all.ipk`
+   `dist\com.ekrani.iptv_1.3.22_all.ipk`
 
    ახალი ვერსია ძველს ზემოდან ეყენება, წაშლა საჭირო არ არის.
 5. აპი გამოჩნდება ტელევიზორის აპების სიაში, სახელით **Ekrani IPTV**.
@@ -221,6 +221,7 @@ npm run build:android -- --bump --publish   # ვერსია +1, ხელ�
 - `service/` — Node.js სერვისი ქსელისთვის.
 - `tools/` — სატესტო სერვერი, build და აიქონის გენერატორი.
 - `android/` — Android TV აპი (Kotlin: WebView + ExoPlayer + ქსელი/LAN/განახლებები); `apk/` — გამოქვეყნებული APK.
+- `app/local/playlist.m3u8` — პირადი ფლეილისტი მხოლოდ სატესტო build-ებისთვის (GitHub-ზე არ იტვირთება, არც გამოქვეყნებულ APK-ში და `ota/`-ში ხვდება). აპი მას ერთხელ ამატებს, როგორც „tv.team (ფაილი)“; პარამეტრებიდან წაშლის შემდეგ აღარასდროს დაამატებს.
 - `app/js/reminders.js` — შეხსენებები; `app/js/lan.js` — ტელეფონიდან დამატება (გვერდს `service/index.js` ემსახურება, პორტები 8890–8899).
 - შრიფტები: Noto Sans Georgian და Noto Sans (კირილიცა), ორივე SIL OFL ლიცენზიით. იხ. `app/fonts/OFL-LICENSE.txt`.
 - QR კოდი: `app/js/lib/qrcode.js` — qrcode-generator 1.4.4, © Kazuhiko Arase, MIT ლიცენზია (მითითება ფაილის თავშია).
