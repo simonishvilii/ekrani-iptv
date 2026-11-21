@@ -3,7 +3,7 @@
   'use strict';
   var K = U.KEY;
 
-  var VERSION = '1.3.19';
+  var VERSION = '1.3.20';
 
   var NAV = [
     { id: 'live', icon: 'live', screen: function () { return Live; } },

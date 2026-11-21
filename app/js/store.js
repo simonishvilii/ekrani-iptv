@@ -29,7 +29,7 @@
     // remote buttons while watching live in fullscreen (see Player.ACTIONS)
     k_ok: 'info', k_left: 'list', k_right: 'epg', k_up: 'next', k_down: 'prev',
     k_chup: 'next', k_chdown: 'prev',
-    k_red: 'fav', k_green: 'audio', k_yellow: 'subs', k_blue: 'aspect',
+    k_red: 'fav', k_green: 'audio', k_yellow: 'last', k_blue: 'restart',
     chScope: 'group',       // CH± / ⬆⬇: group | all | fav
     failNext: true,         // skip a channel that will not play
     ytApiKey: '',           // YouTube Data API v3 key (optional): full channel lists + durations
@@ -42,6 +42,12 @@
   if (!settings.m133) { settings.chOk = 'preview'; settings.m133 = true; save('settings', settings); }
   // before 1.3.5 OK on the live picture opened the channel list; now it shows the info/progress bar
   if (!settings.m135) { if (settings.k_ok === 'list') settings.k_ok = 'info'; settings.m135 = true; save('settings', settings); }
+  // before 1.3.20 yellow/blue were subtitles/picture size (both also in Settings): now the last channel and the programme from its start
+  if (!settings.m1320) {
+    if (settings.k_yellow === 'subs') settings.k_yellow = 'last';
+    if (settings.k_blue === 'aspect') settings.k_blue = 'restart';
+    settings.m1320 = true; save('settings', settings);
+  }
   var playlists = load('playlists', []);
   var activeId = load('active', playlists.length ? playlists[0].id : null);
 
