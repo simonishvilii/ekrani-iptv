@@ -14,6 +14,21 @@
     return Net.text(BASE + name + '?t=' + Date.now(), { timeout: 60000 });
   }
 
+  /* a small repo file as it is right now: raw.githubusercontent serves pushed changes up to ~5 min late,
+     the GitHub API at once (60 requests an hour per address, plenty for a few checks); raw is the fallback */
+  var API = 'https://api.github.com/repos/simonishvilii/ekrani-iptv/contents/';
+  var RAW = 'https://raw.githubusercontent.com/simonishvilii/ekrani-iptv/main/';
+  function fresh(path) {
+    return Net.text(API + path + '?ref=main&t=' + Date.now(), { timeout: 30000 }).then(function (t) {
+      var r = JSON.parse(t);
+      if (!r || r.encoding !== 'base64' || !r.content) throw new Error('api');
+      return U.b64(r.content.replace(/\s+/g, ''));
+    })['catch'](function (e) {
+      console.warn('GitHub API failed, using raw', path, e);
+      return Net.text(RAW + path + '?t=' + Date.now(), { timeout: 30000 });
+    });
+  }
+
   /* the app is in a state where a question may pop up */
   function quiet() { return !Modal.isOpen() && !(window.YtPlayer && YtPlayer.isOpen()); }
 
@@ -21,12 +36,10 @@
 
   /* ---------- Android: the app itself (APK) ---------- */
   var AND = window.EkraniAndroid || null;
-  var APK_INFO = 'https://raw.githubusercontent.com/simonishvilii/ekrani-iptv/main/apk/android.json';
-
   /* a newer APK than this one, or null */
   function apkCheck() {
     if (!AND) return Promise.resolve(null);
-    return Net.text(APK_INFO + '?t=' + Date.now(), { timeout: 30000 }).then(function (t) {
+    return fresh('apk/android.json').then(function (t) {
       var a = JSON.parse(t);
       return a && a.code > AND.code && a.apk ? a : null;
     })['catch'](function (e) { console.warn('apk check failed', e); return null; });
@@ -76,7 +89,7 @@
   }
 
   function checkOta(manual) {
-    fetchText('version.json').then(function (t) {
+    fresh('ota/version.json').then(function (t) {
       var r = JSON.parse(t);
       busy = false;
       if (!r || !r.version || !boot().newer(r.version, App.version) || (declined[r.version] && manual !== true)) {
