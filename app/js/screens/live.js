@@ -339,7 +339,8 @@
     },
     hide: function () {
       el.classList.add('hidden');
-      if (Player.mode() === 'preview') Player.stop();
+      // the channel goes on playing behind the other screens (Back there returns to it full screen)
+      if (Player.mode() === 'preview') Player.background();
     },
     focus: function () { setZone(zone, true); },
     blur: function () { groupsL.setActive(false); chL.setActive(false); progL.setActive(false); },

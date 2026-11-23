@@ -5,7 +5,8 @@
 
   var video, layer, spinner, msg, overlay;
   var cur = null;           // {type:'live'|'catchup', ch, prog, url, list, index}
-  var mode = 'hidden';      // hidden | preview | full
+  var mode = 'hidden';      // hidden | preview | bg | full
+  var fromMenu = false;     // the side menu was opened from full screen: Back returns to the picture
   var previewEl = null;
   var hideTimer = null, stallTimer = null;
   var retries = 0, triedAlt = false, quick = false;
@@ -171,9 +172,11 @@
     layer.style.height = r.height + 'px';
   }
 
+  /* modes: full | preview (the Live screen's box) | bg (other screens: keeps playing, not shown) | hidden (stopped) */
   function setMode(m) {
     mode = m;
-    layer.classList.toggle('hidden', m === 'hidden');
+    if (m === 'full' || m === 'hidden') fromMenu = false;
+    layer.classList.toggle('hidden', m === 'hidden' || m === 'bg');
     layer.classList.toggle('full', m === 'full');
     document.body.classList.toggle('fullscreen', m === 'full');
     if (m === 'full') {
@@ -474,12 +477,16 @@
     idle();
   }
 
-  /* leave full screen and put the focus on the app's side menu */
+  /* leave full screen and put the focus on the app's side menu; the channel keeps playing and Back returns to it */
   function toMainMenu() {
     hideOverlay();
-    Player.exitFull();
+    if (cur && cur.type === 'live') Player.exitFull(); else setMode('bg');
+    fromMenu = !!cur;
     App.focusSidebar();
   }
+
+  /* the Live screen's preview box is on screen (other screens: the player goes to the background) */
+  function previewShown() { return !!(previewEl && previewEl.offsetParent); }
 
   function epgBack() {
     if (epgFrom === 'list' && browse) {
@@ -870,6 +877,18 @@
 
     preview: function () { setMode(cur && cur.type === 'live' ? 'preview' : 'hidden'); },
 
+    /* another screen is opened: the channel goes on playing behind it (stopped only by playing something else) */
+    background: function () { if (cur && mode !== 'full') setMode('bg'); },
+
+    /* Back on the menu or a screen: return to the full-screen picture of what plays behind it.
+       True when it did (the menu was opened from full screen, or the player is in the background). */
+    backToChannel: function () {
+      if (!cur || !(fromMenu || mode === 'bg')) return false;
+      if (cur.type === 'live') App.show('live');   // Back from full screen then lands on the Live screen as usual
+      Player.full();
+      return true;
+    },
+
     /* boot: start the last channel's stream at once, before the playlist and the screens are ready */
     warm: function (url) {
       if (!url || cur) return;
@@ -987,7 +1006,7 @@
         if (Player.onExit) Player.onExit();
         return;
       }
-      setMode('preview');
+      setMode(previewShown() ? 'preview' : 'bg');
       if (Player.onExit) Player.onExit();
     },
 

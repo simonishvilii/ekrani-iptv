@@ -3,7 +3,7 @@
   'use strict';
   var K = U.KEY;
 
-  var VERSION = '1.3.23';
+  var VERSION = '1.3.24';
 
   var NAV = [
     { id: 'live', icon: 'live', screen: function () { return Live; } },
@@ -147,7 +147,8 @@
         case K.UP: navIdx = Math.max(0, navIdx - 1); paintNav(); App.show(NAV[navIdx].id, true); return true;
         case K.DOWN: navIdx = Math.min(NAV.length - 1, navIdx + 1); paintNav(); App.show(NAV[navIdx].id, true); return true;
         case K.RIGHT: case K.ENTER: case K.LONG_OK: App.focusContent(); return true;
-        case K.BACK: case K.ESC: exitApp(); return true;
+        // Back closes the menu over a playing channel; with nothing behind it, it closes the app
+        case K.BACK: case K.ESC: if (!Player.backToChannel()) exitApp(); return true;
       }
       return true;
     }
@@ -156,6 +157,7 @@
     if (k === K.LEFT) { App.focusSidebar(); return true; }
     if (k === K.BACK || k === K.ESC) {
       if (curScreen && curScreen.back && curScreen.back()) return true;
+      if (Player.backToChannel()) return true;
       App.focusSidebar();
       return true;
     }
