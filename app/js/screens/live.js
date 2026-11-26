@@ -369,13 +369,14 @@
       if (i >= 0) { setZone(1); chL.setIndex(i); showDetail(ch); okChannel(ch); }
     },
 
-    playLast: function () {
+    /* full: at start-up the last channel opens full screen (Back then shows the list) */
+    playLast: function (full) {
       var key = Store.lastChannel();
       var ch = key && Data.channel(key);
       if (!ch || Store.isLocked(ch.group)) return;
       var i = chL.items.indexOf(ch);
       if (i >= 0) { chL.setIndex(i, true); showDetail(ch); }
-      Player.playLive(ch, { list: chL.items, index: i < 0 ? 0 : i, listName: chTitle.querySelector('.ct-name').textContent, gid: groupId });
+      Player.playLive(ch, { list: chL.items, index: i < 0 ? 0 : i, listName: chTitle.querySelector('.ct-name').textContent, gid: groupId, full: !!full });
       chL.refresh();
     },
 
@@ -439,6 +440,10 @@
 
     back: function () {
       if (zone === 2) { setZone(1); return true; }
+      // a channel plays in the preview box: Back closes the lists and returns to it full screen
+      // (the side menu is one Left away; Back there closes the app)
+      var cur = Player.current();
+      if (cur && cur.type === 'live' && Player.mode() === 'preview') { Player.full(); return true; }
       if (zone === 1) { setZone(0); return true; }
       return false;
     }

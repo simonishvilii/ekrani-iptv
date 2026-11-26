@@ -69,7 +69,11 @@ class VideoController(private val act: MainActivity, private val view: PlayerVie
             .setReadTimeoutMs(20000)
         val sources = DefaultMediaSourceFactory(DefaultDataSource.Factory(act, http))
         val renderers = DefaultRenderersFactory(act).setEnableDecoderFallback(true)
-        val load = DefaultLoadControl.Builder().setBufferDurationsMs(15000, 50000, 1500, 3000).build()
+        // start after 2 s of video (quick channel change); after a stall wait for 5 s so it does not stutter again at once
+        val load = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(30000, 60000, 2000, 5000)
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
         val p = ExoPlayer.Builder(act, renderers)
             .setMediaSourceFactory(sources)
             .setLoadControl(load)
@@ -113,6 +117,9 @@ class VideoController(private val act: MainActivity, private val view: PlayerVie
         wasReady = false
         val item = MediaItem.Builder().setUri(Uri.parse(u))
         if (asHls) item.setMimeType(MimeTypes.APPLICATION_M3U8)
+        // live: play ~10 s behind the newest segment, so a slow segment download is covered by the buffer
+        // (the player keeps the distance by playing 3 % slower / faster; ignored for archive files)
+        item.setLiveConfiguration(MediaItem.LiveConfiguration.Builder().setTargetOffsetMs(LIVE_OFFSET_MS).build())
         p.playWhenReady = false          // like a video element: plays after play()
         p.setMediaItem(item.build())
         p.prepare()
@@ -255,6 +262,11 @@ class VideoController(private val act: MainActivity, private val view: PlayerVie
     override fun onTracksChanged(tracks: Tracks) { emit("tracks") }
 
     override fun onPlayerError(error: PlaybackException) {
+        // fell out of the live window (long stall): continue at the live position instead of failing
+        if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW && url.isNotEmpty()) {
+            player?.let { it.seekToDefaultPosition(); it.prepare() }
+            return
+        }
         // a stream without .m3u8 in its address that is HLS anyway: try once more as HLS
         if (!triedHls && url.isNotEmpty() && (error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED ||
                 error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED)) {
@@ -269,6 +281,8 @@ class VideoController(private val act: MainActivity, private val view: PlayerVie
 
     /* app to the background: stop the picture right away (the page may be throttled) */
     fun pause() { player?.playWhenReady = false }
+
+    companion object { const val LIVE_OFFSET_MS = 10000L }
 
     fun release() {
         main.removeCallbacks(ticker)

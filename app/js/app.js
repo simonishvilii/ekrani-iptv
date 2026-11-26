@@ -3,7 +3,7 @@
   'use strict';
   var K = U.KEY;
 
-  var VERSION = '1.3.24';
+  var VERSION = '1.3.25';
 
   var NAV = [
     { id: 'live', icon: 'live', screen: function () { return Live; } },
@@ -363,7 +363,7 @@
         [Live, Guide, YouTube, Search, Settings].forEach(function (s) { s.reset(); });
         App.show('live');
         App.bootMark('ui');
-        if (Store.get('autoplay')) Live.playLast();
+        if (Store.get('autoplay')) Live.playLast(!!boot);   // at start-up straight to full screen
         Player.dropWarm();
       }).catch(function (e) {
         busy.close();
