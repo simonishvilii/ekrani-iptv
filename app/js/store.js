@@ -17,6 +17,7 @@
   var DEFAULTS = {
     lang: 'ka',
     streamFormat: 'm3u8',   // Xtream live: m3u8 | ts
+    liveEngine: 'hls',      // webOS live HLS: 'hls' (hls.js, ~10 s buffer) | 'native' (the TV's player)
     epgShift: 0,            // hours
     updateHours: 24,        // 0 = every launch
     autoplay: true,

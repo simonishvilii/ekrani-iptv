@@ -22,6 +22,7 @@ const dist = path.join(root, 'dist');
 const stage = path.join(root, 'build', 'app');
 const cli = path.join(root, 'node_modules', '@webos-tools', 'cli');
 const terser = require(path.join(cli, 'node_modules', 'terser'));
+const HLS_LIB = 'js/lib/hls.light.min.js';   // hls.js 1.7.4 light build (npm hls.js, dist/)
 const app = JSON.parse(fs.readFileSync(path.join(root, 'app', 'appinfo.json'), 'utf8'));
 
 function files(dir) {
@@ -64,6 +65,7 @@ async function prepare() {
     const dst = path.join(stage, rel);
     fs.mkdirSync(path.dirname(dst), { recursive: true });
     const ext = path.extname(src);
+    if (rel.split(path.sep).join('/') === HLS_LIB) continue;   // goes into player.js (below)
     if (ext !== '.js' && ext !== '.css') { fs.copyFileSync(src, dst); continue; }
     let text = fs.readFileSync(src, 'utf8');
     if (rel.split(path.sep).join('/') === 'js/boot.js') {
@@ -78,6 +80,12 @@ async function prepare() {
       const r = await terser.minify(text, { ecma: 5, compress: { passes: 2 }, mangle: true, format: { comments: false } });
       if (r.error) throw r.error;
       out = r.code;
+      // hls.js (live HLS on webOS, see player.js) rides in player.js: boot.js's file list is part of the package
+      // and cannot grow through an update. It is minified ES5 already, so it is added after terser.
+      if (rel.split(path.sep).join('/') === 'js/player.js') {
+        const hls = fs.readFileSync(path.join(root, 'app', HLS_LIB), 'utf8').replace(/\/\/# sourceMappingURL=.*$/m, '').trim();
+        out = hls.replace(/;?$/, ';') + '\n' + out;
+      }
     }
     fs.writeFileSync(dst, out);
     before += Buffer.byteLength(text); after += Buffer.byteLength(out);

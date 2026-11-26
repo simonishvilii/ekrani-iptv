@@ -12,6 +12,7 @@
   var retries = 0, triedAlt = false, quick = false;
   var warmUrl = null;       // last channel started at boot before the playlist / UI were ready
   var netWait = null;       // {t} while waiting for the network to come back (TV just switched on)
+  var hls = null, hlsFixed = false;   // live HLS through hls.js (webOS): see attach()
   var ovState = 'none';     // none | info | list | groups | epg
   var ovList = null;        // VList of the open list / programme panel
   var browse = null;        // group shown in the channel list overlay {gid, name, list}
@@ -106,9 +107,10 @@
     showMsg(I18n.t('waiting_network'));
   }
 
-  function onError() {
-    if (!cur && warmUrl) { warmUrl = null; return; }   // boot start failed: playLive loads again
-    if (!cur || !video.getAttribute('src')) return;
+  function onError(fromHls) {
+    if (hls && fromHls !== true) return;   // hls.js reports its own errors (onHlsError)
+    if (!cur && warmUrl) { warmUrl = null; dropHls(); return; }   // boot start failed: playLive loads again
+    if (!cur || (!hls && !video.getAttribute('src'))) return;
     setBusy(false);
     // no network yet: wait for it instead of spending the retries
     if (navigator.onLine === false) { waitNet(0); return; }
@@ -147,14 +149,69 @@
     load(cur.url, 0);
   }
 
+  /* ---------- live HLS: hls.js or the TV's own player ----------
+     The TV's player (webOS) starts at the newest segment with almost no buffer and has no setting for it, so a
+     slow segment stops the picture. hls.js (bundled into player.js by the build) plays ~10 s behind live with
+     its own buffer. Archive, non-HLS streams, Android (ExoPlayer) and channels set to the TV's player
+     (Settings, or picking an audio track: hls.js plays only a stream's first audio) keep the <video> player. */
+  var HLS_CFG = {
+    enableWorker: true,
+    lowLatencyMode: false,
+    liveSyncDuration: 10,          // play ~10 s behind the newest segment: a slow download is covered by the buffer
+    liveMaxLatencyDuration: 30,    // more than 30 s behind (after a long stall): jump forward
+    maxLiveSyncPlaybackRate: 1,    // never speed up to catch up
+    maxBufferLength: 30,
+    maxMaxBufferLength: 60,
+    backBufferLength: 10           // the TV's memory: keep only 10 s of what was played
+  };
+
+  function hlsWanted(url, key) {
+    if (window.EkraniAndroid || !window.Hls || !Hls.isSupported()) return false;
+    if (Store.get('liveEngine') === 'native') return false;
+    if (!/\.m3u8($|\?)/i.test(url)) return false;
+    return !(key && Store.map('chnative')[key]);
+  }
+
+  function dropHls() {
+    if (!hls) return;
+    var h = hls;
+    hls = null;
+    try { h.destroy(); } catch (e) { /* ignore */ }
+  }
+
+  /* point the <video> at a stream, through hls.js or directly */
+  function attach(url, viaHls) {
+    dropHls();
+    if (!viaHls) {
+      video.src = url;
+      try { video.load(); } catch (e) { /* ignore */ }
+      return;
+    }
+    var h = hls = new Hls(HLS_CFG);
+    hlsFixed = false;
+    h.on(Hls.Events.ERROR, function (ev, d) { if (hls === h) onHlsError(d); });
+    h.attachMedia(video);
+    h.loadSource(url);
+  }
+
+  function onHlsError(d) {
+    if (!d || !d.fatal) return;   // hls.js retries / skips on its own
+    console.warn('hls.js', d.type, d.details);
+    if (!cur) { if (warmUrl) { warmUrl = null; dropHls(); } return; }   // boot start: playLive loads again
+    if (d.type === Hls.ErrorTypes.NETWORK_ERROR) { onError(true); return; }   // same retries as the TV's player
+    if (d.type === Hls.ErrorTypes.MEDIA_ERROR && !hlsFixed) { hlsFixed = true; hls.recoverMediaError(); return; }
+    // a stream hls.js cannot play (codec …): this channel goes on with the TV's player
+    cur.native = true;
+    load(cur.url);
+  }
+
   function load(url, startAt) {
     cur.url = url;
     netWait = null;
     if (navigator.onLine === false) { waitNet(startAt); return; }
     hideMsg();
     setBusy(true);
-    video.src = url;
-    try { video.load(); } catch (e) { /* ignore */ }
+    attach(url, cur.type === 'live' && !cur.native && hlsWanted(url, cur.ch && cur.ch.key));
     if (startAt > 0) {
       var once = function () { video.removeEventListener('loadedmetadata', once); try { video.currentTime = startAt; } catch (e) { /* ignore */ } };
       video.addEventListener('loadedmetadata', once);
@@ -711,6 +768,16 @@
   /* ---------- tracks ---------- */
 
   function audioMenu() {
+    if (hls && cur && cur.ch) {
+      // hls.js plays only the stream's first audio: this channel switches to the TV's player, which lists them all
+      var m = Store.map('chnative');
+      m[cur.ch.key] = 1;
+      Store.setMap('chnative', m);
+      cur.native = true;
+      U.toast(I18n.t('audio_tv_player'));
+      load(cur.url);
+      return;
+    }
     var tracks = video.audioTracks;
     if (!tracks || tracks.length < 2) { U.toast(I18n.t('audio_track') + ': 1'); return; }
     var items = [];
@@ -893,8 +960,8 @@
     warm: function (url) {
       if (!url || cur) return;
       warmUrl = url;
-      video.src = url;
-      try { video.load(); } catch (e) { /* ignore */ }
+      var lp = Store.lastPlay();
+      attach(url, hlsWanted(url, lp && lp.key));
       var p = video.play();
       if (p && p['catch']) p['catch'](function () {});
     },
@@ -902,7 +969,7 @@
     dropWarm: function () {
       if (!warmUrl) return;
       warmUrl = null;
-      if (!cur) { video.pause(); video.removeAttribute('src'); try { video.load(); } catch (e) { /* ignore */ } setBusy(false); }
+      if (!cur) { dropHls(); video.pause(); video.removeAttribute('src'); try { video.load(); } catch (e) { /* ignore */ } setBusy(false); }
     },
 
     stop: function () {
@@ -910,6 +977,7 @@
       warmUrl = null;
       clearTimeout(stallTimer);
       cur = null;
+      dropHls();
       video.pause();
       video.removeAttribute('src');
       try { video.load(); } catch (e) { /* ignore */ }
@@ -923,7 +991,7 @@
       if (!cur) return;
       Player._resume = { pos: video.currentTime };
       video.pause();
-      if (cur.type === 'live') { video.removeAttribute('src'); try { video.load(); } catch (e) { /* ignore */ } }
+      if (cur.type === 'live') { dropHls(); video.removeAttribute('src'); try { video.load(); } catch (e) { /* ignore */ } }
     },
     resume: function () {
       if (!cur || !Player._resume) return;

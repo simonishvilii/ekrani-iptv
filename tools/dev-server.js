@@ -45,6 +45,8 @@ function m3u(host) {
     const arch = c.num % 3 === 0 ? ' catchup="shift" catchup-days="3"' : '';
     s += `#EXTINF:-1 tvg-id="${c.id}" tvg-name="${c.name}" tvg-logo="${logo(c)}" group-title="${c.group}"${arch},${c.name}\n${TEST_STREAM}\n`;
   });
+  // a real live stream (sliding window), to test live playback / hls.js
+  s += `#EXTINF:-1 tvg-logo="" group-title="Live test",Unified Live\nhttps://demo.unified-streaming.com/k8s/live/scte35.isml/.m3u8\n`;
   s += `#EXTINF:-1 tvg-logo="" group-title="VOD",Big Buck Bunny\nhttp://${host}/movie/demo/demo/1001.mp4\n`;
   return s;
 }
