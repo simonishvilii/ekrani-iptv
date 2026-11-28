@@ -53,6 +53,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0f1a;color:#e8ecf
 #card.on{display:flex}
 #cardT{font-size:5vmin;font-weight:800}
 #cardS{font-size:3.4vmin;color:#9aa6bd}
+#cardX{display:flex;gap:2vmin}
+#cardX button{font:inherit;font-size:3.6vmin;font-weight:700;padding:1.6vmin 4vmin;border-radius:2.4vmin;border:2px solid #34405c;background:#141b2c;color:#e8ecf5}
 #rot{position:absolute;right:3vmin;bottom:1vmin;font-size:2.6vmin;color:#56627c}
 </style>
 </head>
@@ -79,7 +81,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0f1a;color:#e8ecf
     <div class="b dr" data-b="32"><svg viewBox="0 0 24 24"><path d="M4 17c3-1 4-4 7-4s3 3 6 3 3-3 3-3M4 11c3-1 4-4 7-4s3 3 6 3 3-3 3-3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span data-t="drift"></span></div>
     <div class="b brk" data-b="8"><svg viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor"/></svg><span data-t="brake"></span></div>
     <div class="b gas" data-b="4"><svg viewBox="0 0 24 24"><path d="M5 13l7-7 7 7M5 19l7-7 7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-t="gas"></span></div>
-    <div id="card"><div id="cardT"></div><div id="cardS"></div><button class="big" id="cardB" data-tap="start"></button></div>
+    <div id="card"><div id="cardT"></div><div id="cardS"></div><button class="big" id="cardB" data-tap="start"></button>
+      <div id="cardX"><button id="cardR" data-tap="restart"></button><button id="cardL" data-tap="lobby"></button></div></div>
   </div>
 </div>
 <script>
@@ -89,15 +92,15 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0f1a;color:#e8ecf
     ka: { hint: 'შეიყვანე ტელევიზორზე ნაჩვენები კოდი', go: 'დაწყება', left: 'მარცხნივ', right: 'მარჯვნივ', hand: 'ხელის მუხრ.', drift: 'დრიფტი',
       brake: 'მუხრუჭი', gas: 'გაზი', start: 'რბოლის დაწყება', pause: 'პაუზა', resume: 'გაგრძელება', lobby: 'მოთამაშე', wait: 'ელოდება რბოლას',
       you: 'შენ ხარ მოთამაშე ', ready: 'როცა ყველა მზადაა, დააჭირე', badCode: 'კოდი არასწორია', noTv: 'ტელევიზორზე თამაში არ არის გახსნილი',
-      lost: 'კავშირი გაწყდა, ვცდილობ ხელახლა…', pos: 'ადგილი', lap: 'წრე', count: 'მზადყოფნა…', done: 'ფინიში!', again: 'ახალი რბოლა', paused: 'პაუზა' },
+      lost: 'კავშირი გაწყდა, ვცდილობ ხელახლა…', pos: 'ადგილი', lap: 'წრე', count: 'მზადყოფნა…', done: 'ფინიში!', again: 'ახალი რბოლა', paused: 'პაუზა', restart: 'თავიდან', quit: 'ლობიში გასვლა' },
     en: { hint: 'Enter the code shown on the TV', go: 'Start', left: 'Left', right: 'Right', hand: 'Handbrake', drift: 'Drift',
       brake: 'Brake', gas: 'Gas', start: 'Start race', pause: 'Pause', resume: 'Resume', lobby: 'Player', wait: 'Waiting for the race',
       you: 'You are player ', ready: 'When everyone is ready, press', badCode: 'Wrong code', noTv: 'The game is not open on the TV',
-      lost: 'Connection lost, reconnecting…', pos: 'Pos', lap: 'Lap', count: 'Get ready…', done: 'Finish!', again: 'New race', paused: 'Paused' },
+      lost: 'Connection lost, reconnecting…', pos: 'Pos', lap: 'Lap', count: 'Get ready…', done: 'Finish!', again: 'New race', paused: 'Paused', restart: 'Restart', quit: 'Quit to lobby' },
     ru: { hint: 'Введите код с экрана телевизора', go: 'Начать', left: 'Влево', right: 'Вправо', hand: 'Ручник', drift: 'Дрифт',
       brake: 'Тормоз', gas: 'Газ', start: 'Начать гонку', pause: 'Пауза', resume: 'Продолжить', lobby: 'Игрок', wait: 'Ожидание гонки',
       you: 'Вы игрок ', ready: 'Когда все готовы, нажмите', badCode: 'Неверный код', noTv: 'Игра не открыта на телевизоре',
-      lost: 'Связь потеряна, переподключение…', pos: 'Место', lap: 'Круг', count: 'Внимание…', done: 'Финиш!', again: 'Новая гонка', paused: 'Пауза' }
+      lost: 'Связь потеряна, переподключение…', pos: 'Место', lap: 'Круг', count: 'Внимание…', done: 'Финиш!', again: 'Новая гонка', paused: 'Пауза', restart: 'Заново', quit: 'В лобби' }
   };
   var q = {};
   location.search.replace(/[?&]([^=&]+)=([^&]*)/g, function (_, k, v) { q[k] = decodeURIComponent(v); });
@@ -221,12 +224,16 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0f1a;color:#e8ecf
     $('mid').style.visibility = (m.s === 'count') ? 'hidden' : 'visible';
     if (m.s === 'wait') { $('mid').style.visibility = 'hidden'; card(t.you + m.n, t.wait, ''); }
     else if (m.s === 'lobby') card(t.you + m.n, t.ready, t.start);
-    else if (m.s === 'done') card(t.done + ' ' + t.pos + ' ' + m.pos, '', t.again);
-    else if (paused) card(t.paused, '', t.resume);
+    else if (m.s === 'done') card(t.done + ' ' + t.pos + ' ' + m.pos, '', t.again, false, true);
+    else if (paused) card(t.paused, '', t.resume, true, true);
     else card('', '', '');
   }
 
-  function card(title, sub, btn) {
+  function card(title, sub, btn, restart, quit) {
+    $('cardR').textContent = t.restart; $('cardL').textContent = t.quit;
+    $('cardR').style.display = restart ? '' : 'none';
+    $('cardL').style.display = quit ? '' : 'none';
+    $('cardX').style.display = restart || quit ? '' : 'none';
     $('card').className = title ? 'on' : '';
     $('cardT').textContent = title;
     $('cardS').textContent = sub;
@@ -271,6 +278,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0f1a;color:#e8ecf
     buzz(15);
     if (name === 'start') send({ t: 'cmd', c: gameState === 'race' && paused ? 'resume' : 'start' });
     else if (name === 'mid') send({ t: 'cmd', c: gameState === 'race' ? (paused ? 'resume' : 'pause') : 'start' });
+    else if (name === 'restart' || name === 'lobby') send({ t: 'cmd', c: name });
   }
 
   var pad = $('pad');

@@ -6,28 +6,29 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.1.0';
+  var VERSION = '0.4.0';
   var COLORS = [0xe8382f, 0x2f7cf0, 0xf2b922, 0x2fbf62];
   var CSS_COLORS = ['#ff4d4d', '#3d8bff', '#ffc933', '#3ddc84'];
-  var AI_NAMES = ['Nika', 'Mari', 'Luka', 'Ana'];
-  var CARS = 4;
+  var AI_NAMES = ['Nika', 'Mari', 'Luka', 'Ana', 'Gio', 'Tako', 'Sandro'];
+  var CARS = 8;          // most cars in a race (wheel and effect buffers are sized for it)
+  var AI_MULTI = 4;      // AI cars when two or more people race
   var B = Car.BITS;
 
   var T = {
     ka: { join: 'შემოუერთდი ტელეფონით', s1: 'ტელეფონი იმავე Wi-Fi ქსელში უნდა იყოს', s2: 'დაასკანერე QR კოდი კამერით', s3: 'ან გახსენი ბრაუზერში:',
       code: 'კოდი', free: 'თავისუფალი', ready: 'დაკავშირებულია', remote: 'პულტი', start: 'რბოლის დასაწყებად: ტელეფონზე „რბოლის დაწყება“ ან პულტზე OK',
       lap: 'წრე', go: 'სტარტი!', wrong: 'საწინააღმდეგო მიმართულება', finish: 'ფინიში', results: 'შედეგები', paused: 'პაუზა',
-      pausedHint: 'გაგრძელება: OK ან ტელეფონი · ლობიში: Back', again: 'ახალი რბოლა: OK ან ტელეფონი', boost: 'ბუსტი', noNet: 'ქსელის სერვერი არ ეშვება',
+      pausedHint: '▲ ▼ არჩევა · OK', mResume: 'გაგრძელება', mRestart: 'თავიდან დაწყება', mQuit: 'ლობიში გასვლა', again: 'ახალი რბოლა: OK ან ტელეფონი', boost: 'ბუსტი', noNet: 'ქსელის სერვერი არ ეშვება',
       connecting: 'ქსელი იტვირთება…', player: 'მოთამაშე', kmh: 'კმ/სთ', nitro: 'ნიტრო!', crash: 'ავარია!', hitIt: 'დაარტყი!', draft: 'სლიპსტრიმი' },
     en: { join: 'Join with your phone', s1: 'The phone must be on the same Wi-Fi', s2: 'Scan the QR code with the camera', s3: 'or open in the browser:',
       code: 'Code', free: 'Free', ready: 'Connected', remote: 'Remote', start: 'To start: “Start race” on a phone or OK on the remote',
       lap: 'Lap', go: 'GO!', wrong: 'Wrong way', finish: 'Finish', results: 'Results', paused: 'Paused',
-      pausedHint: 'Resume: OK or phone · Lobby: Back', again: 'New race: OK or phone', boost: 'Boost', noNet: 'The network server does not start',
+      pausedHint: '▲ ▼ select · OK', mResume: 'Resume', mRestart: 'Restart race', mQuit: 'Quit to lobby', again: 'New race: OK or phone', boost: 'Boost', noNet: 'The network server does not start',
       connecting: 'Starting the network…', player: 'Player', kmh: 'km/h', nitro: 'NITRO!', crash: 'Crash!', hitIt: 'Takedown!', draft: 'Slipstream' },
     ru: { join: 'Подключитесь с телефона', s1: 'Телефон должен быть в той же сети Wi-Fi', s2: 'Отсканируйте QR-код камерой', s3: 'или откройте в браузере:',
       code: 'Код', free: 'Свободно', ready: 'Подключён', remote: 'Пульт', start: 'Старт: «Начать гонку» на телефоне или OK на пульте',
       lap: 'Круг', go: 'Старт!', wrong: 'Не туда', finish: 'Финиш', results: 'Результаты', paused: 'Пауза',
-      pausedHint: 'Продолжить: OK или телефон · В лобби: Back', again: 'Новая гонка: OK или телефон', boost: 'Буст', noNet: 'Сетевой сервер не запускается',
+      pausedHint: '▲ ▼ выбор · OK', mResume: 'Продолжить', mRestart: 'Начать заново', mQuit: 'Выйти в лобби', again: 'Новая гонка: OK или телефон', boost: 'Буст', noNet: 'Сетевой сервер не запускается',
       connecting: 'Запуск сети…', player: 'Игрок', kmh: 'км/ч', nitro: 'НИТРО!', crash: 'Авария!', hitIt: 'Сбил!', draft: 'Слипстрим' }
   };
   var lang = (navigator.language || 'ka').slice(0, 2);
@@ -39,7 +40,7 @@
   var W = window.innerWidth, H = window.innerHeight;
   var canvas = $('gl');
   var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'high-performance', stencil: false });
-  var scale = 0.75;    // render resolution vs. the screen (adapts, see adapt())
+  var scale = 0.9;     // render resolution vs. the screen (adapts, see adapt())
   renderer.setPixelRatio(scale);
   renderer.setSize(W, H);
   renderer.setScissorTest(true);
@@ -48,7 +49,7 @@
   var scene = new THREE.Scene();
   var tr = Track.build('mountain');
   if (tr.minRadius < tr.wall + 4) console.warn('track: tight bend, radius ' + tr.minRadius.toFixed(1) + ' m');
-  var world = World.build(scene, tr);
+  var world = World.build(scene, tr, renderer.capabilities.getMaxAnisotropy());
   var hemi = new THREE.HemisphereLight(0xdfe9ff, 0x5d6b40, 0.8);
   scene.add(hemi);
   var sun = new THREE.DirectionalLight(0xfff0d8, 0.9);
@@ -71,10 +72,11 @@
     cars.forEach(function (c) { scene.remove(c.mesh); });
     cars = [];
     var humans = players.slice().sort(function (a, b) { return a.slot - b.slot; });
-    var aiCount = CARS - humans.length, k;
+    var aiCount = humans.length > 1 ? AI_MULTI : CARS - humans.length, k;
     // AI in front, people at the back of the grid: there is someone to catch
     for (k = 0; k < aiCount; k++) {
-      var ai = Car.create({ color: aiColor(k, humans), ai: true, skill: 0.9 + 0.035 * k, name: AI_NAMES[k] });
+      // skill spread 0.9 .. 0.98: the faster ones start further back and come through the field
+      var ai = Car.create({ color: aiColor(k, humans), ai: true, skill: 0.9 + 0.08 * k / Math.max(1, aiCount - 1), name: AI_NAMES[k % AI_NAMES.length] });
       cars.push(ai);
     }
     humans.forEach(function (p) {
@@ -93,8 +95,8 @@
   function aiColor(k, humans) {
     var used = humans.map(function (p) { return p.slot; }), free = [];
     for (var i = 0; i < 4; i++) if (used.indexOf(i) < 0) free.push(i);
-    var extra = [0x9a5cf0, 0xf07a2f, 0x2fc4d6, 0xd6d6d6];
-    return free[k] !== undefined ? COLORS[free[k]] : extra[k % 4];
+    var extra = [0x9a5cf0, 0xf07a2f, 0x2fc4d6, 0xe4e6ea, 0xff6fb1, 0x26324f, 0x9ccf2a];
+    return free[k] !== undefined ? COLORS[free[k]] : extra[(k - free.length) % extra.length];
   }
 
   /* ---------- views (split screen) ---------- */
@@ -113,7 +115,7 @@
       hud.className = 'hud' + (n > 1 ? ' small' : '');
       hud.style.left = r[0] * 100 + '%'; hud.style.top = r[1] * 100 + '%';
       hud.style.width = r[2] * 100 + '%'; hud.style.height = r[3] * 100 + '%';
-      hud.innerHTML = '<div class="pos"><b>-</b><span>/' + CARS + '</span></div><div class="lap"></div><div class="time"></div>' +
+      hud.innerHTML = '<div class="pos"><b>-</b><span>/' + cars.length + '</span></div><div class="lap"></div><div class="time"></div>' +
         '<div class="spd"><b>0</b><span>' + t.kmh + '</span><i class="charge"><u></u></i></div><div class="msg"></div>' +
         (n > 1 ? '<div class="tag" style="background:' + CSS_COLORS[humans[i] ? humans[i].slot : 0] + '">P' + ((humans[i] ? humans[i].slot : 0) + 1) + '</div>' : '');
       $('huds').appendChild(hud);
@@ -149,6 +151,7 @@
     if (!players.length) addKeyboardPlayer();
     setupCars();
     raceTime = 0; countT = 3.6; lastCount = 4; order = [];
+    warm = 3;   // the first seconds of a race build buffers: not a fair frame rate sample
     pickups.reset();
     Sfx.init(); Sfx.resume();
     setState('count');
@@ -215,9 +218,32 @@
       else if (state === 'race' && paused) resume();
     } else if (c === 'pause') { if (state === 'race' && !paused) pause(); }
     else if (c === 'resume') { if (paused) resume(); }
+    else if (c === 'restart') { if (state === 'race' || state === 'count' || state === 'done') startRace(); }
+    else if (c === 'lobby') { if (state !== 'lobby') toLobby(); }
   }
-  function pause() { paused = true; $('pause').className = 'on'; Sfx.silence(); tellPhones(); }
+  function pause() { paused = true; pauseSel = 0; renderPause(); $('pause').className = 'on'; kbBits = 0; applyKb(); Sfx.silence(); tellPhones(); }
   function resume() { paused = false; $('pause').className = ''; tellPhones(); }
+  function toLobby() { players = players.filter(function (p) { return p.online; }); setState('lobby'); renderSlots(); }
+
+  /* pause menu on the TV: arrows + OK, or the Magic Remote pointer */
+  var pauseSel = 0, PAUSE_ITEMS = ['resume', 'restart', 'lobby'];
+  function renderPause() {
+    var labels = [t.mResume, t.mRestart, t.mQuit], html = '';
+    for (var i = 0; i < 3; i++) html += '<div class="item' + (i === pauseSel ? ' sel' : '') + '" data-i="' + i + '">' + labels[i] + '</div>';
+    $('pmenu').innerHTML = html;
+  }
+  function pauseChoose(i) {
+    var c = PAUSE_ITEMS[i];
+    if (c === 'resume') resume(); else command(c);
+  }
+  $('pmenu').addEventListener('mousemove', function (e) {
+    var i = e.target.getAttribute && e.target.getAttribute('data-i');
+    if (i !== null && i !== undefined && +i !== pauseSel) { pauseSel = +i; renderPause(); }
+  });
+  $('pmenu').addEventListener('click', function (e) {
+    var i = e.target.getAttribute && e.target.getAttribute('data-i');
+    if (i !== null && i !== undefined) pauseChoose(+i);
+  });
 
   function tellPhone(p) {
     if (typeof p.id !== 'number') return;
@@ -268,14 +294,21 @@
     if (k === 461 || k === 27 || k === 8) {       // Back
       e.preventDefault();
       if (state === 'race' && !paused) pause();
+      else if (paused) resume();
       else if (state === 'lobby') { try { window.close(); } catch (x) { /* ignore */ } }
-      else { players = players.filter(function (p) { return p.online; }); setState('lobby'); renderSlots(); }
+      else toLobby();
+      return;
+    }
+    if (paused) {
+      e.preventDefault();
+      if (k === 38) { pauseSel = (pauseSel + 2) % 3; renderPause(); }
+      else if (k === 40) { pauseSel = (pauseSel + 1) % 3; renderPause(); }
+      else if (k === 13) pauseChoose(pauseSel);
       return;
     }
     if (k === 49 || k === 406) { $('dbg').classList.toggle('on'); return; }   // 1 / blue button: debug line
     if (state === 'lobby' && k === 13) { e.preventDefault(); startRace(); return; }
     if (state === 'done' && k === 13) { startRace(); return; }
-    if (paused && k === 13) { resume(); return; }
     if (KEYS[k]) { e.preventDefault(); kbBits |= KEYS[k]; applyKb(); }
   });
   document.addEventListener('keyup', function (e) {
@@ -600,15 +633,26 @@
     }
   }
 
-  var frames = 0, acc = 0, adaptT = 0, good = 0, fps = 60;
+  /* Dynamic resolution. The TV refreshes at 60 Hz, so a healthy frame rate reads 56..60: climb back
+     when it is there, step down only when it stays low for two seconds (not on a single hitch while
+     loading or at the start), and do not climb straight back to a level that was too slow. */
+  var frames = 0, acc = 0, adaptT = 0, good = 0, low = 0, fps = 60, warm = 4, cap = 1, capT = 0;
   function adapt(dt) {
     frames++; acc += dt; adaptT += dt;
     if (adaptT < 1) return;
     fps = frames / acc;
     frames = 0; acc = 0; adaptT = 0;
     var target = scale;
-    if (fps < 50 && scale > 0.5) { target = Math.max(0.5, scale - 0.1); good = 0; }
-    else if (fps > 58) { good++; if (good >= 3 && scale < 1) { target = Math.min(1, scale + 0.05); good = 0; } }
+    if (capT > 0) { capT -= 1; if (capT <= 0) cap = 1; }
+    if (warm > 0) warm -= 1;
+    else if (fps < 47) {
+      low++; good = 0;
+      if (low >= 2 && scale > 0.6) { target = Math.max(0.6, scale - 0.1); cap = scale - 0.05; capT = 30; low = 0; }
+    } else {
+      low = 0;
+      if (fps >= 55) { good++; if (good >= 3 && scale < cap - 0.001) { target = Math.min(cap, scale + 0.05); good = 0; } }
+      else good = 0;
+    }
     if (target !== scale) { scale = target; renderer.setPixelRatio(scale); renderer.setSize(W, H); }
     var info = renderer.info.render;
     $('dbg').textContent = VERSION + ' · ' + Math.round(fps) + ' fps · ' + Math.round(W * scale) + '×' + Math.round(H * scale) +
@@ -648,7 +692,7 @@
   /* ---------- start ---------- */
   function texts() {
     $('tJoin').textContent = t.join; $('tS1').textContent = t.s1; $('tS2').textContent = t.s2; $('tS3').textContent = t.s3;
-    $('tCode').textContent = t.code; $('tStart').textContent = t.start; $('tPaused').textContent = t.paused; $('tPausedHint').textContent = t.pausedHint;
+    $('tCode').textContent = t.code; $('tStart').textContent = t.start; $('tPaused').textContent = t.paused; $('tPausedHint').textContent = t.pausedHint; renderPause();
     $('qrUrl').textContent = t.connecting;
   }
   texts();
@@ -656,5 +700,5 @@
   setState('lobby');
   Net.start(onNet);
   requestAnimationFrame(frame);
-  window.Game = { cars: function () { return cars; }, track: tr, pickups: pickups, players: players, state: function () { return state; }, start: startRace };
+  window.Game = { cars: function () { return cars; }, track: tr, pickups: pickups, get players() { return players; }, state: function () { return state; }, start: startRace };
 })();

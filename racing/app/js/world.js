@@ -126,6 +126,54 @@ var World = (function () {
     return mergeGeos(parts);
   }
 
+  /* detail textures: fine grain multiplied over the baked colours (mean about 0.9, the material colour
+     lifts it back). Planar world UVs, mipmapped, anisotropic where the TV allows. */
+  function grain(kind, aniso) {
+    var S = 256, cv = document.createElement('canvas'); cv.width = cv.height = S;
+    var x = cv.getContext('2d'), img = x.createImageData(S, S), d = img.data, rnd = seeded(kind === 'road' ? 3 : 5);
+    var i, v;
+    for (i = 0; i < S * S; i++) {
+      if (kind === 'road') v = 214 + (rnd() - 0.5) * 70 + (rnd() < 0.03 ? 40 : 0);
+      else v = 205 + (rnd() - 0.5) * 60;
+      d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = Math.max(0, Math.min(255, v)); d[i * 4 + 3] = 255;
+    }
+    x.putImageData(img, 0, 0);
+    // soft blotches: patched asphalt, or clumps of grass
+    for (i = 0; i < 60; i++) {
+      var px = rnd() * S, py = rnd() * S, r = 8 + rnd() * 26;
+      var g = x.createRadialGradient(px, py, 0, px, py, r), dark = rnd() < 0.5;
+      var a = kind === 'road' ? 0.13 : 0.2;
+      g.addColorStop(0, dark ? 'rgba(0,0,0,' + a + ')' : 'rgba(255,255,255,' + a + ')');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = g;
+      for (var ox = -S; ox <= S; ox += S) for (var oy = -S; oy <= S; oy += S) { x.save(); x.translate(ox, oy); x.fillRect(px - r, py - r, r * 2, r * 2); x.restore(); }
+    }
+    if (kind === 'grass') {
+      // little blades
+      for (i = 0; i < 900; i++) {
+        var bx = rnd() * S, by = rnd() * S;
+        x.strokeStyle = rnd() < 0.5 ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.16)';
+        x.beginPath(); x.moveTo(bx, by); x.lineTo(bx + (rnd() - 0.5) * 3, by - 3 - rnd() * 4); x.stroke();
+      }
+    }
+    var tex = new THREE.CanvasTexture(cv);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.anisotropy = aniso || 1;
+    return tex;
+  }
+
+  /* world-planar UVs (vertical faces get some variation from y) */
+  function planarUv(geo, size) {
+    var p = geo.attributes.position, uv = new Float32Array(p.count * 2);
+    for (var i = 0; i < p.count; i++) {
+      var y = p.getY(i);
+      uv[i * 2] = (p.getX(i) + y * 0.8) / size;
+      uv[i * 2 + 1] = (p.getZ(i) + y * 0.8) / size;
+    }
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    return geo;
+  }
+
   function seeded(s) {
     return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
   }
@@ -232,14 +280,18 @@ var World = (function () {
     return mergeGeos(parts);
   }
 
-  function build(scene, tr) {
-    var mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  function build(scene, tr, aniso) {
+    var a = Math.min(4, aniso || 1);
+    var mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, map: grain('road', a) });
+    mat.color.setScalar(1.1);
+    var gmat = new THREE.MeshBasicMaterial({ vertexColors: true, map: grain('grass', a) });
+    gmat.color.setScalar(1.14);
     var skyGroup = sky();
     scene.add(skyGroup);
-    scene.add(new THREE.Mesh(ground(), new THREE.MeshBasicMaterial({ vertexColors: true })));
+    scene.add(new THREE.Mesh(planarUv(ground(), 9), gmat));
     var mtn = new THREE.Mesh(mountains(), new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }));
     scene.add(mtn);
-    scene.add(new THREE.Mesh(Track.roadMesh(tr), mat));
+    scene.add(new THREE.Mesh(planarUv(Track.roadMesh(tr), 7), mat));
     scene.add(trees(tr));
     scene.add(new THREE.Mesh(startArea(tr), new THREE.MeshBasicMaterial({ vertexColors: true })));
     scene.add(new THREE.Mesh(church(-60, 520, 0.4), new THREE.MeshBasicMaterial({ vertexColors: true })));

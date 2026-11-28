@@ -39,7 +39,7 @@ var Car = (function () {
   function paint(g, color) {
     g = g.index ? g.toNonIndexed() : g;
     g.deleteAttribute('uv');
-    var c = new THREE.Color(color), n = g.attributes.position.count, a = new Float32Array(n * 3);
+    var c = new THREE.Color(color).convertSRGBToLinear(), n = g.attributes.position.count, a = new Float32Array(n * 3);   // linear: deep, saturated paint after the sRGB output
     for (var i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; }
     g.setAttribute('color', new THREE.BufferAttribute(a, 3));
     g.computeVertexNormals();
@@ -71,9 +71,30 @@ var Car = (function () {
 
   var bodyMat = null, lightMat = null;
 
+  /* a tiny sky box for reflections in the paint and glass: sky above, bright horizon, green ground */
+  function envCube() {
+    function face(kind) {
+      var cv = document.createElement('canvas'); cv.width = cv.height = 64;
+      var x = cv.getContext('2d');
+      if (kind === 'top') { x.fillStyle = '#6f9fe0'; x.fillRect(0, 0, 64, 64); }
+      else if (kind === 'bottom') { x.fillStyle = '#4b5a3a'; x.fillRect(0, 0, 64, 64); }
+      else {
+        var g = x.createLinearGradient(0, 0, 0, 64);
+        g.addColorStop(0, '#7fa9e3'); g.addColorStop(0.46, '#e9ecef'); g.addColorStop(0.52, '#a8b5a0'); g.addColorStop(1, '#55683f');
+        x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+      }
+      return cv;
+    }
+    var tex = new THREE.CubeTexture([face('side'), face('side'), face('top'), face('bottom'), face('side'), face('side')]);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
   function model(color) {
     if (!bodyMat) {
-      bodyMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+      // per-pixel light with a highlight and a faint sky reflection: the paint looks like paint
+      bodyMat = new THREE.MeshPhongMaterial({ vertexColors: true, specular: 0x5a5a5a, shininess: 60,
+        envMap: envCube(), combine: THREE.MixOperation, reflectivity: 0.16 });
       lightMat = new THREE.MeshBasicMaterial({ vertexColors: true });
     }
     var dark = 0x1c1f26, glass = 0x1d2a3a, c = new THREE.Color(color);
@@ -89,7 +110,17 @@ var Car = (function () {
       boxAt(1.84, 0.07, 0.42, 0, 1.12, -1.92, trim),                               // spoiler
       boxAt(0.08, 0.3, 0.16, -0.62, 0.92, -1.9, dark),
       boxAt(0.08, 0.3, 0.16, 0.62, 0.92, -1.9, dark),
-      boxAt(1.2, 0.16, 0.06, 0, 0.42, 2.11, dark)                                  // grille
+      boxAt(1.2, 0.16, 0.06, 0, 0.42, 2.11, dark),                                 // grille
+      boxAt(2.02, 0.06, 0.34, 0, 0.24, 2.0, dark),                                  // front splitter
+      boxAt(1.5, 0.14, 0.2, 0, 0.3, -2.1, dark),                                    // rear diffuser
+      boxAt(0.12, 0.12, 0.2, -0.45, 0.32, -2.16, 0x8d929c),                         // exhausts
+      boxAt(0.12, 0.12, 0.2, 0.45, 0.32, -2.16, 0x8d929c),
+      boxAt(0.22, 0.12, 0.1, -0.95, 1.0, 0.62, color),                              // mirrors
+      boxAt(0.22, 0.12, 0.1, 0.95, 1.0, 0.62, color),
+      boxAt(0.08, 0.12, 1.0, -0.99, 0.7, 1.33, trim),                               // wheel arch flares
+      boxAt(0.08, 0.12, 1.0, 0.99, 0.7, 1.33, trim),
+      boxAt(0.08, 0.12, 1.0, -0.99, 0.7, -1.3, trim),
+      boxAt(0.08, 0.12, 1.0, 0.99, 0.7, -1.3, trim)
     ];
     var body = new THREE.Mesh(merge(parts), bodyMat);
     var lights = new THREE.Mesh(merge([

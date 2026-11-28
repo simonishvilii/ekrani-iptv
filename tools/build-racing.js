@@ -15,6 +15,12 @@ const app = JSON.parse(fs.readFileSync(path.join(root, 'racing', 'app', 'appinfo
 const svc = JSON.parse(fs.readFileSync(path.join(root, 'racing', 'service', 'package.json'), 'utf8'));
 if (svc.version !== app.version) console.warn('note: service version ' + svc.version + ' differs from the app ' + app.version);
 
+// the version on the debug line comes from appinfo.json: keep game.js in step
+const gameJs = path.join(root, 'racing', 'app', 'js', 'game.js');
+const src = fs.readFileSync(gameJs, 'utf8');
+const synced = src.replace(/var VERSION = '[^']*';/, "var VERSION = '" + app.version + "';");
+if (synced !== src) { fs.writeFileSync(gameJs, synced); console.log('game.js VERSION -> ' + app.version); }
+
 fs.mkdirSync(dist, { recursive: true });
 execFileSync(process.execPath, [
   path.join(root, 'node_modules', '@webos-tools', 'cli', 'bin', 'ares-package.js'),

@@ -1,12 +1,13 @@
 /*
- * Nitro canisters on the straights: a row of three across the road. Driving through one gives
+ * Nitro canisters on the straights: one at a time, in the left, middle or right lane (it moves to
+ * another lane each time it comes back), so taking it means aiming for it. Driving through one gives
  * Car.NITRO_TIME seconds of extra power and top speed. A taken canister comes back after a while.
  * All canisters are one instanced mesh, their glow on the road another: two draw calls.
  */
 var Pickups = (function () {
   'use strict';
 
-  var RESPAWN = 9;          // seconds
+  var RESPAWN = 8;          // seconds
   var LANES = [-4.6, 0, 4.6];
   var REACH2 = 2.1 * 2.1;   // pick-up distance (squared) from the car's front or rear point
 
@@ -55,7 +56,7 @@ var Pickups = (function () {
 
   /* straight-ish road for a row: little bend 35 m either side, away from the start line, spread out */
   function spots(tr) {
-    var out = [], n = tr.n, look = Math.ceil(35 / tr.seg), gapMin = tr.length / 6;
+    var out = [], n = tr.n, look = Math.ceil(35 / tr.seg), gapMin = tr.length / 3.6;
     for (var i = 0; i < n; i++) {
       var d = tr.dist[i];
       if (d < 120 || d > tr.length - 60) continue;
@@ -71,11 +72,11 @@ var Pickups = (function () {
   function P(scene, tr) {
     this.items = [];
     var self = this;
-    spots(tr).forEach(function (d) {
-      LANES.forEach(function (lat) {
-        var o = Track.pointAt(tr, d, lat, {});
-        self.items.push({ x: o.x, z: o.z, dist: d, away: 0, phase: Math.random() * 6 });
-      });
+    this.tr = tr;
+    spots(tr).forEach(function (d, k) {
+      var it = { x: 0, z: 0, dist: d, lane: k % 3, away: 0, phase: Math.random() * 6 };
+      self.place(it, it.lane);
+      self.items.push(it);
     });
     var n = this.items.length;
     this.mesh = new THREE.InstancedMesh(bottleGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0x0b2a66 }), n);
@@ -105,7 +106,11 @@ var Pickups = (function () {
           if (c.air) continue;
           var fx = Math.sin(c.heading) * 1.2, fz = Math.cos(c.heading) * 1.2;
           var ax = c.x + fx - it.x, az = c.z + fz - it.z, bx = c.x - fx - it.x, bz = c.z - fz - it.z;
-          if (ax * ax + az * az < REACH2 || bx * bx + bz * bz < REACH2) { it.away = RESPAWN; onTake(c, it); break; }
+          if (ax * ax + az * az < REACH2 || bx * bx + bz * bz < REACH2) {
+            it.away = RESPAWN; onTake(c, it);
+            this.place(it, (it.lane + 1 + Math.floor(Math.random() * 2)) % 3);   // comes back in another lane
+            break;
+          }
         }
       }
       // shown: spins and bobs; coming back: grows in during the last half second
@@ -127,7 +132,14 @@ var Pickups = (function () {
     this.glow.instanceMatrix.needsUpdate = true;
   };
 
-  P.prototype.reset = function () { for (var i = 0; i < this.items.length; i++) this.items[i].away = 0; };
+  P.prototype.place = function (it, lane) {
+    var o = Track.pointAt(this.tr, it.dist, LANES[lane], {});
+    it.lane = lane; it.x = o.x; it.z = o.z;
+  };
+
+  P.prototype.reset = function () {
+    for (var i = 0; i < this.items.length; i++) { this.items[i].away = 0; this.place(this.items[i], i % 3); }
+  };
 
   return { create: function (scene, tr) { return new P(scene, tr); } };
 })();

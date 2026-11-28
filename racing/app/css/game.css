@@ -65,6 +65,9 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0b0f1a; c
 #pause.on, #results.on { display: block; }
 #pause h2, #results h2 { font-size: 64px; margin-bottom: 18px; }
 #pause p, #results p { font-size: 28px; color: #ffd9a8; margin-top: 20px; }
+#pmenu .item { font-size: 40px; font-weight: 600; padding: 16px 40px; margin-top: 12px; border-radius: 18px; color: #cfd8ea;
+  border: 3px solid transparent; cursor: pointer; }
+#pmenu .item.sel { background: #ff4d4d; color: #fff; border-color: #ffb3a8; }
 #results .row { display: flex; align-items: center; padding: 12px 20px; margin-top: 8px; border-radius: 14px; font-size: 34px; text-align: left; }
 #results .row.me { background: rgba(255,255,255,0.12); }
 #results .row b { width: 60px; font-size: 40px; font-style: italic; }
