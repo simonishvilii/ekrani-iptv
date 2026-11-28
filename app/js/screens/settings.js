@@ -74,7 +74,6 @@
     out.push({ type: 'choice', key: 'tz', label: I18n.t('tz'), opts: tzOpts() });
 
     out.push({ h: I18n.t('playback') });
-    if (!window.EkraniAndroid) out.push({ type: 'choice', key: 'liveEngine', label: I18n.t('live_engine'), opts: [{ v: 'hls', l: I18n.t('engine_hls') }, { v: 'native', l: I18n.t('engine_native') }] });
     out.push({ type: 'choice', key: 'streamFormat', label: I18n.t('stream_format'), opts: [{ v: 'm3u8', l: 'HLS (.m3u8)' }, { v: 'ts', l: 'MPEG-TS (.ts)' }] });
     out.push({ type: 'choice', key: 'chScope', label: I18n.t('ch_scope'), opts: [{ v: 'group', l: I18n.t('scope_group') }, { v: 'all', l: I18n.t('scope_all') }, { v: 'fav', l: I18n.t('scope_fav') }] });
     out.push({ type: 'choice', key: 'failNext', label: I18n.t('fail_next'), opts: [{ v: true, l: onOff(true) }, { v: false, l: onOff(false) }] });
