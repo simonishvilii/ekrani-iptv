@@ -1,0 +1,16 @@
+{
+  "id": "com.ekrani.racing",
+  "version": "0.1.0",
+  "vendor": "Ekrani",
+  "type": "web",
+  "main": "index.html",
+  "title": "Racing",
+  "icon": "img/icon.png",
+  "largeIcon": "img/largeIcon.png",
+  "bgColor": "#0b0f1a",
+  "iconColor": "#0b0f1a",
+  "resolution": "1920x1080",
+  "disableBackHistoryAPI": true,
+  "handlesRelaunch": false,
+  "requiredPermissions": ["time.query", "activity.operation"]
+}

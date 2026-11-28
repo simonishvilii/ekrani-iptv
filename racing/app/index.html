@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Racing</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <div id="huds"></div>
+  <canvas id="minimap" width="260" height="260"></canvas>
+
+  <div id="lobby" class="on">
+    <div class="brand"><b>RACING</b><span>Kazbegi Circuit</span></div>
+    <div class="panel">
+      <h1 id="tJoin"></h1>
+      <div class="row">
+        <canvas id="qr" width="300" height="300"></canvas>
+        <div class="how">
+          <p>1. <span id="tS1"></span></p>
+          <p>2. <span id="tS2"></span></p>
+          <p>3. <span id="tS3"></span></p>
+          <div id="qrUrl" class="url"></div>
+          <div class="code"><span id="tCode"></span> <b id="qrCode">····</b></div>
+        </div>
+      </div>
+      <div id="slots"></div>
+      <p id="tStart" class="hint"></p>
+    </div>
+  </div>
+
+  <div id="pause"><h2 id="tPaused"></h2><p id="tPausedHint"></p></div>
+  <div id="results"></div>
+  <div id="dbg" class="on"></div>
+
+  <script src="js/lib/three.min.js"></script>
+  <script src="js/lib/qrcode.js"></script>
+  <script src="js/track.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/car.js"></script>
+  <script src="js/fx.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/net.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

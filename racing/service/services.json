@@ -1,0 +1,10 @@
+{
+  "id": "com.ekrani.racing.service",
+  "description": "Racing LAN server",
+  "services": [
+    {
+      "name": "com.ekrani.racing.service",
+      "description": "Serves the phone controller page and relays phone input to the game"
+    }
+  ]
+}

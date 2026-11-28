@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f1a">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Racing</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#0b0f1a;color:#e8ecf5;font-family:"Noto Sans Georgian","Noto Sans",system-ui,sans-serif;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none;overscroll-behavior:none}
+#root{position:fixed;left:0;top:0;transform-origin:0 0}
+.screen{position:absolute;inset:0;display:none}
+.screen.on{display:block}
+
+/* join */
+#join{display:none;flex-direction:column;align-items:center;justify-content:center;gap:3.2vmin;text-align:center;padding:4vmin}
+#join.on{display:flex}
+.logo{font-size:9vmin;font-weight:800;letter-spacing:.06em;font-style:italic}
+.logo b{color:#ff4d4d}
+.hint{font-size:3.6vmin;color:#9aa6bd;max-width:90%}
+#code{font:inherit;font-size:9vmin;width:34vmin;text-align:center;letter-spacing:.3em;padding:1.5vmin 0 1.5vmin .3em;border-radius:2vmin;
+  border:2px solid #2a3550;background:#141b2c;color:#fff;outline:none;-webkit-user-select:text;user-select:text}
+#code:focus{border-color:#3d8bff}
+.big{font:inherit;font-size:5vmin;font-weight:700;padding:2.4vmin 9vmin;border-radius:3vmin;border:0;background:#ff4d4d;color:#fff}
+.big:active{transform:scale(.96)}
+#err{color:#ff8080;font-size:3.6vmin;min-height:4.4vmin}
+
+/* pad */
+#pad{padding:2.5vmin 3vmin 3vmin}
+#bar{position:absolute;left:3vmin;right:3vmin;top:2vmin;height:9vmin;display:flex;align-items:center;justify-content:space-between;gap:2vmin;font-size:3.6vmin;color:#9aa6bd}
+#chip{display:inline-flex;align-items:center;gap:1.4vmin;padding:.8vmin 2.4vmin;border-radius:2vmin;background:#1a2236;color:#fff;font-weight:700}
+#chip i{width:2.8vmin;height:2.8vmin;border-radius:50%;background:#ff4d4d;display:inline-block}
+#info{flex:1;text-align:left;padding-left:2vmin;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#cfd6e4;font-weight:600}
+#mid{font:inherit;font-size:3.6vmin;font-weight:700;padding:1.2vmin 3.4vmin;border-radius:2vmin;border:2px solid #34405c;background:#141b2c;color:#e8ecf5}
+#net{min-width:16vmin;text-align:right}
+#net.bad{color:#ff8080}
+
+.b{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1vmin;border-radius:4vmin;
+  font-size:3.4vmin;font-weight:700;letter-spacing:.02em;transition:transform .04s,filter .04s;border:.5vmin solid rgba(255,255,255,.08)}
+.b svg{width:11vmin;height:11vmin}
+.b.on{transform:scale(.94);filter:brightness(1.35)}
+.l,.r{background:#17345c;color:#b9d6ff}
+.gas{background:#1f5a2c;color:#c6f5cf}
+.brk{background:#5c1d23;color:#ffc3c8}
+.hb{background:#5a3d10;color:#ffd99a}
+.dr{background:#35306e;color:#d4d0ff}
+
+/* lobby / message card over the pad */
+#card{position:absolute;left:50%;top:54%;transform:translate(-50%,-50%);display:none;flex-direction:column;align-items:center;gap:2.4vmin;
+  background:rgba(11,15,26,.92);border:2px solid #2a3550;border-radius:4vmin;padding:4vmin 6vmin;text-align:center;min-width:56vmin;max-width:80%}
+#card.on{display:flex}
+#cardT{font-size:5vmin;font-weight:800}
+#cardS{font-size:3.4vmin;color:#9aa6bd}
+#rot{position:absolute;right:3vmin;bottom:1vmin;font-size:2.6vmin;color:#56627c}
+</style>
+</head>
+<body>
+<div id="root">
+  <div id="join" class="screen">
+    <div class="logo">RACIN<b>G</b></div>
+    <div class="hint" id="jHint"></div>
+    <input id="code" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off">
+    <button class="big" id="go"></button>
+    <div id="err"></div>
+  </div>
+
+  <div id="pad" class="screen">
+    <div id="bar">
+      <span id="chip"><i></i><span id="pn">P1</span></span>
+      <span id="info"></span>
+      <button id="mid" data-tap="mid"></button>
+      <span id="net"></span>
+    </div>
+    <div class="b l" data-b="1"><svg viewBox="0 0 24 24"><path d="M15 4 7 12l8 8" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-t="left"></span></div>
+    <div class="b r" data-b="2"><svg viewBox="0 0 24 24"><path d="M9 4l8 8-8 8" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-t="right"></span></div>
+    <div class="b hb" data-b="16"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M10 16.5V7.5h3a2.6 2.6 0 0 1 0 5.2h-3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-t="hand"></span></div>
+    <div class="b dr" data-b="32"><svg viewBox="0 0 24 24"><path d="M4 17c3-1 4-4 7-4s3 3 6 3 3-3 3-3M4 11c3-1 4-4 7-4s3 3 6 3 3-3 3-3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span data-t="drift"></span></div>
+    <div class="b brk" data-b="8"><svg viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor"/></svg><span data-t="brake"></span></div>
+    <div class="b gas" data-b="4"><svg viewBox="0 0 24 24"><path d="M5 13l7-7 7 7M5 19l7-7 7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-t="gas"></span></div>
+    <div id="card"><div id="cardT"></div><div id="cardS"></div><button class="big" id="cardB" data-tap="start"></button></div>
+  </div>
+</div>
+<script>
+(function () {
+  'use strict';
+  var T = {
+    ka: { hint: 'შეიყვანე ტელევიზორზე ნაჩვენები კოდი', go: 'დაწყება', left: 'მარცხნივ', right: 'მარჯვნივ', hand: 'ხელის მუხრ.', drift: 'დრიფტი',
+      brake: 'მუხრუჭი', gas: 'გაზი', start: 'რბოლის დაწყება', pause: 'პაუზა', resume: 'გაგრძელება', lobby: 'მოთამაშე', wait: 'ელოდება რბოლას',
+      you: 'შენ ხარ მოთამაშე ', ready: 'როცა ყველა მზადაა, დააჭირე', badCode: 'კოდი არასწორია', noTv: 'ტელევიზორზე თამაში არ არის გახსნილი',
+      lost: 'კავშირი გაწყდა, ვცდილობ ხელახლა…', pos: 'ადგილი', lap: 'წრე', count: 'მზადყოფნა…', done: 'ფინიში!', again: 'ახალი რბოლა', paused: 'პაუზა' },
+    en: { hint: 'Enter the code shown on the TV', go: 'Start', left: 'Left', right: 'Right', hand: 'Handbrake', drift: 'Drift',
+      brake: 'Brake', gas: 'Gas', start: 'Start race', pause: 'Pause', resume: 'Resume', lobby: 'Player', wait: 'Waiting for the race',
+      you: 'You are player ', ready: 'When everyone is ready, press', badCode: 'Wrong code', noTv: 'The game is not open on the TV',
+      lost: 'Connection lost, reconnecting…', pos: 'Pos', lap: 'Lap', count: 'Get ready…', done: 'Finish!', again: 'New race', paused: 'Paused' },
+    ru: { hint: 'Введите код с экрана телевизора', go: 'Начать', left: 'Влево', right: 'Вправо', hand: 'Ручник', drift: 'Дрифт',
+      brake: 'Тормоз', gas: 'Газ', start: 'Начать гонку', pause: 'Пауза', resume: 'Продолжить', lobby: 'Игрок', wait: 'Ожидание гонки',
+      you: 'Вы игрок ', ready: 'Когда все готовы, нажмите', badCode: 'Неверный код', noTv: 'Игра не открыта на телевизоре',
+      lost: 'Связь потеряна, переподключение…', pos: 'Место', lap: 'Круг', count: 'Внимание…', done: 'Финиш!', again: 'Новая гонка', paused: 'Пауза' }
+  };
+  var q = {};
+  location.search.replace(/[?&]([^=&]+)=([^&]*)/g, function (_, k, v) { q[k] = decodeURIComponent(v); });
+  var lang = q.l || (navigator.language || 'ka').slice(0, 2);
+  var t = T[lang] || T.ka;
+  var $ = function (id) { return document.getElementById(id); };
+  var root = $('root');
+
+  /* ---------- always landscape ---------- */
+  var W = 0, H = 0;
+  function layout() {
+    var w = window.innerWidth, h = window.innerHeight;
+    var rot = h > w;                       // portrait: turn the whole UI by 90°
+    W = rot ? h : w; H = rot ? w : h;
+    root.style.width = W + 'px';
+    root.style.height = H + 'px';
+    root.style.transform = rot ? 'translateX(' + w + 'px) rotate(90deg)' : 'none';
+    // pad buttons (percent of the landscape box)
+    var top = H * 0.17, gap = Math.min(W, H) * 0.03, side = W * 0.03, bottom = H * 0.05;
+    var bh = H - top - bottom;
+    var leftW = W * 0.42, arrowW = (leftW - gap) / 2;
+    place('.l', side, top + bh * 0.12, arrowW, bh * 0.88);
+    place('.r', side + arrowW + gap, top + bh * 0.12, arrowW, bh * 0.88);
+    var rx = W - side - W * 0.46, rw = W * 0.46, c1 = rw * 0.44, c2 = rw - c1 - gap;
+    var r1 = bh * 0.36, r2 = bh - r1 - gap;
+    place('.hb', rx, top, c1, r1);
+    place('.dr', rx + c1 + gap, top, c2, r1);
+    place('.brk', rx, top + r1 + gap, c1, r2);
+    place('.gas', rx + c1 + gap, top + r1 + gap, c2, r2);
+  }
+  function place(sel, x, y, w, h) {
+    var e = root.querySelector(sel);
+    e.style.left = x + 'px'; e.style.top = y + 'px'; e.style.width = w + 'px'; e.style.height = h + 'px';
+  }
+  window.addEventListener('resize', layout);
+  window.addEventListener('orientationchange', function () { setTimeout(layout, 200); });
+
+  function fullscreen() {
+    var d = document.documentElement;
+    if (document.fullscreenElement || document.webkitFullscreenElement) return lockLandscape();
+    var p = null;
+    try { p = d.requestFullscreen ? d.requestFullscreen({ navigationUI: 'hide' }) : (d.webkitRequestFullscreen && d.webkitRequestFullscreen()); } catch (e) { /* not allowed */ }
+    if (p && p.then) p.then(lockLandscape, function () {}); else lockLandscape();
+  }
+  function lockLandscape() {
+    try {
+      if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').then(function () { setTimeout(layout, 100); }, function () {});
+    } catch (e) { /* the rotated layout covers it */ }
+  }
+
+  /* ---------- texts ---------- */
+  $('jHint').textContent = t.hint;
+  $('go').textContent = t.go;
+  Array.prototype.forEach.call(document.querySelectorAll('[data-t]'), function (e) { e.textContent = t[e.getAttribute('data-t')]; });
+  $('code').value = (q.c || localStorage.getItem('racing.code') || '').replace(/\D/g, '').slice(0, 4);
+
+  function show(id) {
+    $('join').className = 'screen' + (id === 'join' ? ' on' : '');
+    $('pad').className = 'screen' + (id === 'pad' ? ' on' : '');
+  }
+
+  /* ---------- connection ---------- */
+  var pid = localStorage.getItem('racing.pid');
+  if (!pid) { pid = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('racing.pid', pid); }
+  var ws = null, joined = false, code = '', retry = 0, gameState = 'lobby', paused = false;
+
+  function connect() {
+    try { ws = new WebSocket('ws://' + location.host + '/pad'); } catch (e) { return later(); }
+    ws.onopen = function () { ws.send(JSON.stringify({ t: 'join', code: code, pid: pid, name: '' })); };
+    ws.onmessage = function (e) {
+      var m; try { m = JSON.parse(e.data); } catch (x) { return; }
+      onMsg(m);
+    };
+    ws.onclose = function () {
+      ws = null;
+      if (!joined) return;
+      $('net').textContent = '—'; $('net').className = 'bad';
+      card(t.lost, '', '');
+      later();
+    };
+  }
+  function later() { clearTimeout(retry); retry = setTimeout(connect, 1000); }
+  function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+
+  function onMsg(m) {
+    if (m.t === 'err') {
+      joined = false;
+      show('join');
+      $('err').textContent = m.e === 'code' ? t.badCode : t.noTv;
+      if (ws) ws.close();
+      return;
+    }
+    if (m.t === 'ok') {
+      joined = true;
+      localStorage.setItem('racing.code', code);
+      show('pad'); layout();
+      card('', '', '');
+      return;
+    }
+    if (m.t === 'png') {
+      var ms = Date.now() - m.ts;
+      $('net').textContent = ms + ' ms';
+      $('net').className = ms > 120 ? 'bad' : '';
+      return;
+    }
+    if (m.t === 'buzz') { buzz(m.ms || 30); return; }
+    if (m.t === 'p') { player(m); return; }
+  }
+
+  function player(m) {
+    gameState = m.s; paused = !!m.paused;
+    $('pn').textContent = 'P' + m.n;
+    root.querySelector('#chip i').style.background = m.c;
+    $('cardB').style.background = m.c;
+    var info = '';
+    if (m.s === 'race' || m.s === 'count') info = t.pos + ' ' + m.pos + '/' + m.cars + ' · ' + t.lap + ' ' + Math.max(1, Math.min(m.lap, m.laps)) + '/' + m.laps;
+    else if (m.s === 'done') info = t.done + ' ' + t.pos + ' ' + m.pos + '/' + m.cars;
+    else info = t.wait;
+    $('info').textContent = info;
+    $('mid').textContent = m.s === 'race' ? (paused ? t.resume : t.pause) : t.start;
+    $('mid').style.visibility = (m.s === 'count') ? 'hidden' : 'visible';
+    if (m.s === 'wait') { $('mid').style.visibility = 'hidden'; card(t.you + m.n, t.wait, ''); }
+    else if (m.s === 'lobby') card(t.you + m.n, t.ready, t.start);
+    else if (m.s === 'done') card(t.done + ' ' + t.pos + ' ' + m.pos, '', t.again);
+    else if (paused) card(t.paused, '', t.resume);
+    else card('', '', '');
+  }
+
+  function card(title, sub, btn) {
+    $('card').className = title ? 'on' : '';
+    $('cardT').textContent = title;
+    $('cardS').textContent = sub;
+    $('cardB').textContent = btn;
+    $('cardB').style.display = btn ? '' : 'none';
+  }
+
+  function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* no vibration */ } }
+
+  setInterval(function () { if (joined) send({ t: 'png', ts: Date.now() }); }, 2000);
+
+  /* ---------- buttons ---------- */
+  var bits = 0, sentBits = -1, touches = {}, mouseEl = null;
+
+  function btnAt(x, y) {
+    var e = document.elementFromPoint(x, y);
+    while (e && e !== document.body) {
+      if (e.getAttribute && (e.getAttribute('data-b') || e.getAttribute('data-tap'))) return e;
+      e = e.parentNode;
+    }
+    return null;
+  }
+  function recompute() {
+    var nb = 0, els = [];
+    Object.keys(touches).forEach(function (k) {
+      var e = touches[k].el;
+      if (e && e.getAttribute('data-b')) { nb |= +e.getAttribute('data-b'); els.push(e); }
+    });
+    if (mouseEl && mouseEl.getAttribute('data-b')) { nb |= +mouseEl.getAttribute('data-b'); els.push(mouseEl); }
+    if (cardOn() && !paused) nb = 0;          // the lobby card is up: no driving
+    Array.prototype.forEach.call(root.querySelectorAll('.b'), function (b) {
+      b.classList.toggle('on', els.indexOf(b) >= 0);
+    });
+    if (nb & ~bits) buzz(8);
+    bits = nb;
+    if (bits !== sentBits) { sentBits = bits; send({ t: 'in', k: bits }); }
+  }
+  function cardOn() { return $('card').className === 'on'; }
+  setInterval(function () { if (joined) { sentBits = bits; send({ t: 'in', k: bits }); } }, 200);
+
+  function tap(name) {
+    buzz(15);
+    if (name === 'start') send({ t: 'cmd', c: gameState === 'race' && paused ? 'resume' : 'start' });
+    else if (name === 'mid') send({ t: 'cmd', c: gameState === 'race' ? (paused ? 'resume' : 'pause') : 'start' });
+  }
+
+  var pad = $('pad');
+  pad.addEventListener('touchstart', function (e) {
+    e.preventDefault();
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var tc = e.changedTouches[i];
+      var el = btnAt(tc.clientX, tc.clientY);
+      touches[tc.identifier] = { el: el, start: el };
+    }
+    recompute();
+  }, { passive: false });
+  pad.addEventListener('touchmove', function (e) {
+    e.preventDefault();
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var tc = e.changedTouches[i], s = touches[tc.identifier];
+      if (!s) continue;
+      var el = btnAt(tc.clientX, tc.clientY);
+      // a thumb can slide from one button to the next (gas -> drift) without lifting
+      if (!s.start || s.start.getAttribute('data-b')) s.el = el && el.getAttribute('data-b') ? el : null;
+    }
+    recompute();
+  }, { passive: false });
+  function touchEnd(e) {
+    e.preventDefault();
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var tc = e.changedTouches[i], s = touches[tc.identifier];
+      delete touches[tc.identifier];
+      if (s && s.start && s.start.getAttribute('data-tap') && btnAt(tc.clientX, tc.clientY) === s.start) tap(s.start.getAttribute('data-tap'));
+    }
+    recompute();
+    fullscreen();                     // back to full screen if the player swiped out of it
+  }
+  pad.addEventListener('touchend', touchEnd, { passive: false });
+  pad.addEventListener('touchcancel', touchEnd, { passive: false });
+
+  // mouse, for trying it on a computer
+  pad.addEventListener('mousedown', function (e) {
+    var el = btnAt(e.clientX, e.clientY);
+    if (el && el.getAttribute('data-tap')) { tap(el.getAttribute('data-tap')); return; }
+    mouseEl = el; recompute();
+  });
+  window.addEventListener('mouseup', function () { mouseEl = null; recompute(); });
+  document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  /* ---------- join ---------- */
+  function join() {
+    code = $('code').value.replace(/\D/g, '');
+    if (code.length !== 4) { $('err').textContent = t.badCode; return; }
+    $('err').textContent = '';
+    fullscreen();
+    $('code').blur();
+    if (ws) { try { ws.close(); } catch (e) { /* ignore */ } }
+    connect();
+  }
+  $('go').addEventListener('click', join);
+  $('code').addEventListener('keydown', function (e) { if (e.key === 'Enter') join(); });
+  $('code').addEventListener('input', function () { $('err').textContent = ''; });
+
+  layout();
+  show('join');
+})();
+</script>
+</body>
+</html>
