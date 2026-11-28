@@ -23,7 +23,10 @@
   var emitTimer = null;
   var status = { state: 'none' };   // none | api | ready | loading | error  (+ pct, bytes, time, n)
   var statusListeners = [];
+  var last = null;       // the active playlist's XMLTV sources, for the background refresh { plId, urls, channels, at }
+  var apiAt = 0;         // when the Xtream per-channel guide was last cleared
   var MAX_HELD = 300;
+  var RETRY = 15 * 60000;   // a failed or out-of-date guide is tried again at most this often
   var BATCH = 256 * 1024;
 
   function noop() {}
@@ -138,6 +141,7 @@
     this.count = 0;
     this.src = 0;        // current source index
     this.shift = 0;      // current source time correction, seconds
+    this.end = 0;        // end of the last programme stored, seconds
   }
   /* data: { xmltvId: [[startSec, stopSec, title, desc], …] } */
   Sink.prototype.add = function (data, map) {
@@ -150,6 +154,7 @@
       var l = data[id];
       if (sh) l = l.map(function (r) { return [r[0] + sh, r[1] + sh, r[2], r[3]]; });
       self.count += l.length;
+      for (var i = 0; i < l.length; i++) if (l[i][1] > self.end) self.end = l[i][1];
       keys.forEach(function (k) { self.owner[k] = self.src; byKey[k] = byKey[k] ? byKey[k].concat(l) : l.slice(); });
     });
     var keys = Object.keys(byKey);
@@ -291,6 +296,7 @@
   }
 
   function activate(plId, gen) {
+    if (src && src.plId === plId && src.gen === gen) return;   // the same guide (background check)
     src = { plId: plId, gen: gen };
     useApi = false;
     emit();
@@ -309,13 +315,16 @@
       src = null;
       xt = xtream || null;
       useApi = !!xt;
+      last = null;
+      apiAt = Date.now();
       setStatus({ state: xt ? 'api' : 'none' });
       emit();
     },
 
     /* load XMLTV sources; cached per channel in IndexedDB and refreshed in the background */
-    loadXmltv: function (plId, urls, channels, force) {
+    loadXmltv: function (plId, urls, channels, force, quiet) {
       var seq = ++loadSeq;
+      last = { plId: plId, urls: urls, channels: channels, at: Date.now() };
       var metaKey = 'epg:' + plId;
       // [{url, shift(hours)}] or plain urls; earlier sources win for a channel
       urls = urls.map(function (u) { return typeof u === 'string' ? { url: u, shift: 0 } : u; });
@@ -331,14 +340,18 @@
           Cache.remove(metaKey);
           if (meta.gen) Cache.removePrefix(genPrefix(plId, meta.gen));
         }
-        if (usable && !force && Date.now() - meta.time < maxAge) return true;
+        var age = usable ? Date.now() - meta.time : 0;
+        // the guide also runs out when the app stays open for days (a TV is rarely restarted):
+        // with less than 12 h of programmes left it is downloaded again (at most every 3 h)
+        var runningOut = usable && meta.end && meta.end * 1000 - Date.now() < 12 * 3600000 && age > 3 * 3600000;
+        if (usable && !force && age < maxAge && !runningOut) return true;
 
         var gen = Date.now().toString(36);
         var ctx = {
           seq: seq, win: windowFor(channels), sink: new Sink(plId, gen), failed: false, error: '',
           idx: 0, urls: urls.length, prevTime: usable ? meta.time : 0, prevN: usable ? meta.n : 0
         };
-        if (!usable) U.toast(I18n.t('loading_epg'));
+        if (!usable && !quiet) U.toast(I18n.t('loading_epg'));
         progress(ctx, 0, 0);
         var p = Promise.resolve();
         urls.forEach(function (u, i) {
@@ -362,17 +375,17 @@
             if (usable) setStatus({ state: 'ready', time: meta.time, n: meta.n, err: ctx.error || I18n.t('no_epg') });
             else {
               setStatus({ state: 'error', err: ctx.error || I18n.t('no_epg') });
-              U.toast(I18n.t('epg_failed') + (ctx.error ? ': ' + ctx.error : ''), 6000);
+              if (!quiet) U.toast(I18n.t('epg_failed') + (ctx.error ? ': ' + ctx.error : ''), 6000);
             }
             return usable;
           }
           var time = Date.now();
-          return Cache.set(metaKey, { v: 2, time: time, urls: sig, gen: gen, n: ctx.sink.count }).then(function () {
+          return Cache.set(metaKey, { v: 2, time: time, urls: sig, gen: gen, n: ctx.sink.count, end: ctx.sink.end }).then(function () {
             if (seq !== loadSeq) return false;
             activate(plId, gen);
             setStatus({ state: 'ready', time: time, n: ctx.sink.count, err: ctx.failed ? ctx.error : '' });
             if (usable) Cache.removePrefix(genPrefix(plId, meta.gen));
-            else U.toast(I18n.t('epg_ready'));
+            else if (!quiet) U.toast(I18n.t('epg_ready'));
             return true;
           });
         }, function () {
@@ -380,6 +393,22 @@
           return usable;
         });
       });
+    },
+
+    /* background refresh (a timer, the app coming back to the screen, the network coming back): the guide
+       was only loaded at start-up before, and a TV keeps the app open for days, so the programmes ran out */
+    check: function () {
+      var now = Date.now();
+      if (useApi && !last && now - apiAt > 6 * 3600000) {
+        // Xtream per-channel guide: fetched again when a channel is next shown
+        apiAt = now;
+        progs = {}; progGen = {}; touched = {}; held = 0; lazyLoaded = {};
+        emit();
+        return;
+      }
+      if (!last || status.state === 'loading' || now - last.at < RETRY) return;
+      var l = last;
+      Epg.loadXmltv(l.plId, l.urls, l.channels, false, true)['catch'](function (e) { console.warn(e); });
     },
 
     /* make sure the channel's programmes are in memory (XMLTV cache or Xtream API) */

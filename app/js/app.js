@@ -3,7 +3,7 @@
   'use strict';
   var K = U.KEY;
 
-  var VERSION = '1.3.26';
+  var VERSION = '1.3.27';
 
   var NAV = [
     { id: 'live', icon: 'live', screen: function () { return Live; } },
@@ -405,6 +405,9 @@
       setTimeout(function () { YtChannels.refresh(); }, 3000);
       setInterval(function () { YtChannels.refresh(); }, 3 * 3600000);
       Epg.onStatus(paintEpgBadge);
+      // the guide: downloaded again when it is out of date or running out, also while the app stays open
+      setInterval(Epg.check, 10 * 60000);
+      window.addEventListener('online', function () { setTimeout(Epg.check, 5000); });
       Update.start();
 
       document.addEventListener('keydown', onKeyDown, true);
@@ -415,7 +418,7 @@
       Player.onChannelChange = function (ch, i, gid) { if (curScreen === Live) Live.syncTo(ch, gid); };
 
       document.addEventListener('visibilitychange', function () {
-        if (document.hidden) Player.suspend(); else Player.resume();
+        if (document.hidden) Player.suspend(); else { Player.resume(); setTimeout(Epg.check, 3000); }
       });
       // webOS: show the pointer-friendly UI when the Magic Remote cursor appears
       document.addEventListener('cursorStateChange', function (e) {
