@@ -149,6 +149,7 @@ var Car = (function () {
     this.impact = 0;                // last wall / car hit strength (for buzz, shake, sound)
     this.wrongWay = 0;
     this.nitro = 0;                 // seconds of nitro left (from a canister on the road)
+    this.draft = 0;                 // 0..1 slipstream behind another car (set by the game every step)
     this.wreck = 0;                 // seconds without control after being hit
     this.immune = 0;                // a moment after a wreck in which it cannot be knocked again
     this.y = 0; this.vy = 0; this.flip = 0; this.flipRate = 0; this.air = false;
@@ -160,7 +161,7 @@ var Car = (function () {
     this.x = o.x; this.z = o.z; this.heading = o.heading;
     this.vx = this.vz = this.s = this.l = this.omega = this.steer = 0;
     this.drift = 0; this.charge = 0; this.boost = 0; this.boostLevel = 0; this.input = 0;
-    this.nitro = 0; this.wreck = 0; this.immune = 0; this.y = 0; this.vy = 0; this.flip = 0; this.flipRate = 0; this.air = false;
+    this.nitro = 0; this.draft = 0; this.wreck = 0; this.immune = 0; this.y = 0; this.vy = 0; this.flip = 0; this.flipRate = 0; this.air = false;
     this.finished = false; this.finishTime = 0;
     Track.locate(tr, this.x, this.z, o.i, this.loc, true);
     this.idx = this.loc.i; this.along = this.loc.along; this.lat = this.loc.lat;
@@ -236,14 +237,15 @@ var Car = (function () {
     l = l2;
 
     // throttle / brake
-    var extra = this.nitro > 0 ? 15 : (this.boost > 0 ? 10 : 0);
+    // slipstream: less air to push behind another car, so more pull and a higher top speed
+    var extra = (this.nitro > 0 ? 15 : (this.boost > 0 ? 10 : 0)) + this.draft * 4;
     var maxS = MAX * this.skill * (this.offroad ? 0.55 : 1) + extra;
     var s0 = s;
     if (brake && s > 1) s -= BRAKE * dt;
     else if (brake) s = Math.max(-REV_MAX, s - REV_ACC * dt);
     else if (gas) {
       if (s < 0) s += BRAKE * dt;
-      else if (s < maxS) s += ACC * (1 - (s / maxS) * (s / maxS)) * dt + (this.nitro > 0 ? 22 * dt : (this.boost > 0 ? 14 * dt : 0));
+      else if (s < maxS) s += ACC * (1 - (s / maxS) * (s / maxS)) * dt + (this.nitro > 0 ? 22 * dt : (this.boost > 0 ? 14 * dt : 0)) + this.draft * 4 * dt;
     } else {
       var coast = (2.5 + 0.0009 * s * s) * dt;
       s -= Math.abs(s) < coast ? s : (s > 0 ? coast : -coast);

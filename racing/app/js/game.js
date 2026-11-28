@@ -18,17 +18,17 @@
       code: 'კოდი', free: 'თავისუფალი', ready: 'დაკავშირებულია', remote: 'პულტი', start: 'რბოლის დასაწყებად: ტელეფონზე „რბოლის დაწყება“ ან პულტზე OK',
       lap: 'წრე', go: 'სტარტი!', wrong: 'საწინააღმდეგო მიმართულება', finish: 'ფინიში', results: 'შედეგები', paused: 'პაუზა',
       pausedHint: 'გაგრძელება: OK ან ტელეფონი · ლობიში: Back', again: 'ახალი რბოლა: OK ან ტელეფონი', boost: 'ბუსტი', noNet: 'ქსელის სერვერი არ ეშვება',
-      connecting: 'ქსელი იტვირთება…', player: 'მოთამაშე', kmh: 'კმ/სთ', nitro: 'ნიტრო!', crash: 'ავარია!', hitIt: 'დაარტყი!' },
+      connecting: 'ქსელი იტვირთება…', player: 'მოთამაშე', kmh: 'კმ/სთ', nitro: 'ნიტრო!', crash: 'ავარია!', hitIt: 'დაარტყი!', draft: 'სლიპსტრიმი' },
     en: { join: 'Join with your phone', s1: 'The phone must be on the same Wi-Fi', s2: 'Scan the QR code with the camera', s3: 'or open in the browser:',
       code: 'Code', free: 'Free', ready: 'Connected', remote: 'Remote', start: 'To start: “Start race” on a phone or OK on the remote',
       lap: 'Lap', go: 'GO!', wrong: 'Wrong way', finish: 'Finish', results: 'Results', paused: 'Paused',
       pausedHint: 'Resume: OK or phone · Lobby: Back', again: 'New race: OK or phone', boost: 'Boost', noNet: 'The network server does not start',
-      connecting: 'Starting the network…', player: 'Player', kmh: 'km/h', nitro: 'NITRO!', crash: 'Crash!', hitIt: 'Takedown!' },
+      connecting: 'Starting the network…', player: 'Player', kmh: 'km/h', nitro: 'NITRO!', crash: 'Crash!', hitIt: 'Takedown!', draft: 'Slipstream' },
     ru: { join: 'Подключитесь с телефона', s1: 'Телефон должен быть в той же сети Wi-Fi', s2: 'Отсканируйте QR-код камерой', s3: 'или откройте в браузере:',
       code: 'Код', free: 'Свободно', ready: 'Подключён', remote: 'Пульт', start: 'Старт: «Начать гонку» на телефоне или OK на пульте',
       lap: 'Круг', go: 'Старт!', wrong: 'Не туда', finish: 'Финиш', results: 'Результаты', paused: 'Пауза',
       pausedHint: 'Продолжить: OK или телефон · В лобби: Back', again: 'Новая гонка: OK или телефон', boost: 'Буст', noNet: 'Сетевой сервер не запускается',
-      connecting: 'Запуск сети…', player: 'Игрок', kmh: 'км/ч', nitro: 'НИТРО!', crash: 'Авария!', hitIt: 'Сбил!' }
+      connecting: 'Запуск сети…', player: 'Игрок', kmh: 'км/ч', nitro: 'НИТРО!', crash: 'Авария!', hitIt: 'Сбил!', draft: 'Слипстрим' }
   };
   var lang = (navigator.language || 'ka').slice(0, 2);
   if (!T[lang]) lang = 'ka';
@@ -305,6 +305,7 @@
     var live = racing || state === 'done';
     var lead = -1e9;
     for (var h = 0; h < players.length; h++) if (players[h].car) lead = Math.max(lead, players[h].car.raceDist);
+    slipstream(dt, live);
     for (var i = 0; i < cars.length; i++) {
       var c = cars[i];
       if (c.ai && live) {
@@ -353,6 +354,36 @@
         doneT += dt;
         if (doneT > 2.5) { doneT = 0; showResults(); }
       } else doneT = 0;
+    }
+  }
+
+  /* slipstream: a car close behind another (same lane, same direction, at speed) builds up a pull
+     over about a second; it fades quickly once out of the wake */
+  function slipstream(dt, live) {
+    for (var i = 0; i < cars.length; i++) {
+      var c = cars[i], inWake = 0;
+      if (live && !c.air && c.wreck <= 0 && c.s > 18) {
+        var fx = Math.sin(c.heading), fz = Math.cos(c.heading);
+        for (var j = 0; j < cars.length; j++) {
+          var o = cars[j];
+          if (o === c || o.air || o.s < 12) continue;
+          var dx = o.x - c.x, dz = o.z - c.z;
+          var along = dx * fx + dz * fz;
+          if (along < 4 || along > 24) continue;
+          var side = Math.abs(dx * fz - dz * fx);
+          if (side > 2.4) continue;
+          if (Math.cos(o.heading - c.heading) < 0.85) continue;
+          inWake = Math.max(inWake, 1 - (along - 4) / 20 * 0.4);   // closer = stronger
+        }
+      }
+      var before = c.draft;
+      if (inWake > 0) c.draft = Math.min(inWake, c.draft + dt * 0.9);
+      else c.draft = Math.max(0, c.draft - dt * 1.6);
+      if (before < 0.75 && c.draft >= 0.75 && !(c.draftMsg > 0)) {
+        c.draftMsg = 1.2;
+        var hp = humanOf(c);
+        if (hp) Net.to(hp.id, { t: 'buzz', ms: 30 });
+      }
     }
   }
 
@@ -492,11 +523,13 @@
       e.lap.textContent = t.lap + ' ' + lapOf(c) + '/' + tr.laps;
       e.time.textContent = fmt(c.finished ? c.finishTime : raceTime);
       e.spd.textContent = Math.round(Math.abs(c.s) * 3.6);
-      var ch = c.nitro > 0 ? c.nitro / Car.NITRO_TIME : (c.drift ? Math.min(1, c.charge / 2.4) : 0);
+      var drafting = !(c.nitro > 0) && !c.drift && c.draft > 0.05;
+      var ch = c.nitro > 0 ? c.nitro / Car.NITRO_TIME : (c.drift ? Math.min(1, c.charge / 2.4) : (drafting ? c.draft : 0));
       e.charge.style.width = (ch * 100) + '%';
-      e.charge.style.background = c.nitro > 0 ? '#38e8ff' : (c.charge >= 2.4 ? '#ff9b2f' : (c.charge >= 1.1 ? '#4fb3ff' : '#cfd6e4'));
-      e.chargeBox.style.opacity = c.drift || c.boost > 0 || c.nitro > 0 ? 1 : 0.25;
+      e.charge.style.background = c.nitro > 0 ? '#38e8ff' : (drafting ? '#b9f5c8' : (c.charge >= 2.4 ? '#ff9b2f' : (c.charge >= 1.1 ? '#4fb3ff' : '#cfd6e4')));
+      e.chargeBox.style.opacity = c.drift || c.boost > 0 || c.nitro > 0 || drafting ? 1 : 0.25;
       if (c.nitroMsg > 0) c.nitroMsg -= 0.1;
+      if (c.draftMsg > 0) c.draftMsg -= 0.1;
       if (c.crashMsg > 0) c.crashMsg -= 0.1;
       if (c.hitMsg > 0) c.hitMsg -= 0.1;
       var msg = '', kind = '';
@@ -506,6 +539,7 @@
       else if (c.crashMsg > 0) { msg = t.crash; kind = ' crash'; }
       else if (c.hitMsg > 0) { msg = t.hitIt; kind = ' hit'; }
       else if (c.nitroMsg > 0) { msg = t.nitro; kind = ' nitro'; }
+      else if (c.draftMsg > 0 && c.draft > 0.3) { msg = t.draft; kind = ' draft'; }
       else if (c.wrongWay > 60) msg = t.wrong;
       e.msg.textContent = msg;
       e.msg.className = 'msg' + (msg && (state === 'count' || (state === 'race' && raceTime < 1)) ? ' big' : kind);

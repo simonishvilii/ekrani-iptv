@@ -75,7 +75,9 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0b0f1a; c
 .hud .msg.nitro { color: #5ff0ff; font-size: 72px; font-style: italic; }
 .hud .msg.crash { color: #ff5a4a; font-size: 72px; font-style: italic; }
 .hud .msg.hit { color: #ffd24a; font-size: 72px; font-style: italic; }
+.hud .msg.draft { color: #b9f5c8; font-size: 48px; font-style: italic; }
 .hud.small .msg.nitro, .hud.small .msg.crash, .hud.small .msg.hit { font-size: 50px; }
+.hud.small .msg.draft { font-size: 36px; }
 #dbg { position: fixed; left: 50%; bottom: 8px; transform: translateX(-50%); padding: 4px 14px; border-radius: 8px; background: rgba(0,0,0,0.55);
   font: 18px monospace; color: #b9ffb9; display: none; }
 #dbg.on { display: block; }

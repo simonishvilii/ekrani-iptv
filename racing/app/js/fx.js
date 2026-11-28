@@ -130,6 +130,12 @@ var Fx = (function () {
             c.vx * 0.7 - fx * 6, Math.random(), c.vz * 0.7 - fz * 6, 0.16, 0.7, 0.2, 1, lvl2 ? 0.55 : 0.8, lvl2 ? 0.15 : 0.35, 0.95);
         }
       }
+      // slipstream: thin wind streaks rushing past both sides of the car
+      if (c.draft > 0.35 && Math.random() < c.draft * 0.9) {
+        var sd = Math.random() < 0.5 ? -1 : 1, ah = 1 + Math.random() * 2.5;
+        this.emit(c.x + rx * sd * (1.25 + Math.random() * 0.4) + fx * ah, 0.5 + Math.random() * 0.7, c.z + rz * sd * (1.25 + Math.random() * 0.4) + fz * ah,
+          c.vx * 0.35, 0, c.vz * 0.35, 0.3, 0.16, 0.06, 0.92, 1, 0.95, 0.7);
+      }
       // a car landing after a flip throws up dust
       if (c.dust) {
         c.dust = false;
