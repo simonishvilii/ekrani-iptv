@@ -18,17 +18,17 @@
       code: 'კოდი', free: 'თავისუფალი', ready: 'დაკავშირებულია', remote: 'პულტი', start: 'რბოლის დასაწყებად: ტელეფონზე „რბოლის დაწყება“ ან პულტზე OK',
       lap: 'წრე', go: 'სტარტი!', wrong: 'საწინააღმდეგო მიმართულება', finish: 'ფინიში', results: 'შედეგები', paused: 'პაუზა',
       pausedHint: 'გაგრძელება: OK ან ტელეფონი · ლობიში: Back', again: 'ახალი რბოლა: OK ან ტელეფონი', boost: 'ბუსტი', noNet: 'ქსელის სერვერი არ ეშვება',
-      connecting: 'ქსელი იტვირთება…', player: 'მოთამაშე', kmh: 'კმ/სთ' },
+      connecting: 'ქსელი იტვირთება…', player: 'მოთამაშე', kmh: 'კმ/სთ', nitro: 'ნიტრო!', crash: 'ავარია!', hitIt: 'დაარტყი!' },
     en: { join: 'Join with your phone', s1: 'The phone must be on the same Wi-Fi', s2: 'Scan the QR code with the camera', s3: 'or open in the browser:',
       code: 'Code', free: 'Free', ready: 'Connected', remote: 'Remote', start: 'To start: “Start race” on a phone or OK on the remote',
       lap: 'Lap', go: 'GO!', wrong: 'Wrong way', finish: 'Finish', results: 'Results', paused: 'Paused',
       pausedHint: 'Resume: OK or phone · Lobby: Back', again: 'New race: OK or phone', boost: 'Boost', noNet: 'The network server does not start',
-      connecting: 'Starting the network…', player: 'Player', kmh: 'km/h' },
+      connecting: 'Starting the network…', player: 'Player', kmh: 'km/h', nitro: 'NITRO!', crash: 'Crash!', hitIt: 'Takedown!' },
     ru: { join: 'Подключитесь с телефона', s1: 'Телефон должен быть в той же сети Wi-Fi', s2: 'Отсканируйте QR-код камерой', s3: 'или откройте в браузере:',
       code: 'Код', free: 'Свободно', ready: 'Подключён', remote: 'Пульт', start: 'Старт: «Начать гонку» на телефоне или OK на пульте',
       lap: 'Круг', go: 'Старт!', wrong: 'Не туда', finish: 'Финиш', results: 'Результаты', paused: 'Пауза',
       pausedHint: 'Продолжить: OK или телефон · В лобби: Back', again: 'Новая гонка: OK или телефон', boost: 'Буст', noNet: 'Сетевой сервер не запускается',
-      connecting: 'Запуск сети…', player: 'Игрок', kmh: 'км/ч' }
+      connecting: 'Запуск сети…', player: 'Игрок', kmh: 'км/ч', nitro: 'НИТРО!', crash: 'Авария!', hitIt: 'Сбил!' }
   };
   var lang = (navigator.language || 'ka').slice(0, 2);
   if (!T[lang]) lang = 'ka';
@@ -55,6 +55,7 @@
   sun.position.copy(World.SUN);
   scene.add(sun);
   var fx = Fx.create(scene, CARS);
+  var pickups = Pickups.create(scene, tr);
 
   /* ---------- players & cars ---------- */
   // player: { id (phone id or 'kb'), slot 0..3, bits, online, car }
@@ -148,6 +149,7 @@
     if (!players.length) addKeyboardPlayer();
     setupCars();
     raceTime = 0; countT = 3.6; lastCount = 4; order = [];
+    pickups.reset();
     Sfx.init(); Sfx.resume();
     setState('count');
   }
@@ -327,6 +329,12 @@
         if (hp2) { Net.to(hp2.id, { t: 'buzz', ms: Math.min(150, 20 + cc.impact * 6) }); Sfx.hit(cc.impact); }
       }
       if (cc.impact < 1) cc.hitShown = false;
+      if (cc.landed) {
+        cc.landed = false; cc.dust = true;
+        var hp4 = humanOf(cc);
+        if (hp4) Net.to(hp4.id, { t: 'buzz', ms: 120 });
+        if (anyHumanNear(cc)) Sfx.hit(14);
+      }
       if (racing && !cc.finished && cc.raceDist >= tr.laps * tr.length) {
         cc.finished = true; cc.finishTime = raceTime;
         order.push(cc);
@@ -355,6 +363,7 @@
         var A = cars[a], Bc = cars[b];
         var dx0 = Bc.x - A.x, dz0 = Bc.z - A.z;
         if (dx0 * dx0 + dz0 * dz0 > 36) continue;
+        if (Math.abs(A.y - Bc.y) > 1.2) continue;     // one of them is flying over the other
         for (var i = -1; i <= 1; i += 2) {
           for (var j = -1; j <= 1; j += 2) {
             var ax = A.x + Math.sin(A.heading) * 1.1 * i, az = A.z + Math.cos(A.heading) * 1.1 * i;
@@ -365,6 +374,7 @@
             A.x -= nx * pen; A.z -= nz * pen; Bc.x += nx * pen; Bc.z += nz * pen;
             var rel = (Bc.vx - A.vx) * nx + (Bc.vz - A.vz) * nz;
             if (rel < 0) {
+              if (state === 'race') takedown(A, Bc, nx, nz, -rel);
               var imp = -rel * 0.65;
               A.vx -= nx * imp; A.vz -= nz * imp; Bc.vx += nx * imp; Bc.vz += nz * imp;
               A.impact = Math.max(A.impact, -rel); Bc.impact = Math.max(Bc.impact, -rel);
@@ -374,6 +384,38 @@
         }
       }
     }
+  }
+
+  /* who drove into whom: the car moving into the other one more is the attacker */
+  var SPIN_AT = 7.5, FLIP_AT = 14;
+  function takedown(A, Bc, nx, nz, hit) {
+    if (hit < SPIN_AT - 2) return;
+    var aIn = A.vx * nx + A.vz * nz, bIn = -(Bc.vx * nx + Bc.vz * nz);
+    var atk = aIn >= bIn ? A : Bc, vic = atk === A ? Bc : A;
+    var px = atk === A ? nx : -nx, pz = atk === A ? nz : -nz;    // push direction, away from the attacker
+    // nitro / boost make the hit count for more
+    var power = hit + (atk.nitro > 0 ? 5 : 0) + (atk.boost > 0 ? 2.5 : 0);
+    if (power < SPIN_AT) return;
+    if (!vic.knock(px, pz, power, power >= FLIP_AT)) return;
+    vic.crashMsg = 1.6; atk.hitMsg = 1.4;
+    var hv = humanOf(vic), ha = humanOf(atk);
+    if (hv) Net.to(hv.id, { t: 'buzz', ms: 260 });
+    if (ha) Net.to(ha.id, { t: 'buzz', ms: 90 });
+    if (hv || ha) Sfx.hit(power);
+  }
+  function anyHumanNear(c) {
+    for (var i = 0; i < players.length; i++) {
+      var o = players[i].car;
+      if (o && (o.x - c.x) * (o.x - c.x) + (o.z - c.z) * (o.z - c.z) < 90 * 90) return true;
+    }
+    return false;
+  }
+
+  function takeNitro(c) {
+    c.takeNitro();
+    c.nitroMsg = 1.2;
+    var hp = humanOf(c);
+    if (hp) { Net.to(hp.id, { t: 'buzz', ms: 80 }); Sfx.boost(); }
   }
 
   function rank() {
@@ -422,14 +464,14 @@
       var d = c.heading - v.yaw;
       while (d > Math.PI) d -= Math.PI * 2;
       while (d < -Math.PI) d += Math.PI * 2;
-      v.yaw += d * (1 - Math.exp(-dt * (c.drift ? 3.2 : 6)));
+      v.yaw += d * (1 - Math.exp(-dt * (c.wreck > 0 || c.air ? 1.2 : (c.drift ? 3.2 : 6))));
       var spd = Math.abs(c.s), back = 7.2 + spd * 0.025, up = 2.7 + spd * 0.006;
       var sx = Math.sin(v.yaw), sz = Math.cos(v.yaw);
       v.shake = Math.max(v.shake * Math.exp(-dt * 7), c.impact > 4 ? Math.min(0.5, c.impact * 0.03) : 0);
-      cam.position.set(c.x - sx * back + (Math.random() - 0.5) * v.shake, up + (Math.random() - 0.5) * v.shake, c.z - sz * back);
-      tmpV.set(c.x + sx * 6, 1.25, c.z + sz * 6);
+      cam.position.set(c.x - sx * back + (Math.random() - 0.5) * v.shake, up + c.y * 0.6 + (Math.random() - 0.5) * v.shake, c.z - sz * back);
+      tmpV.set(c.x + sx * 6, 1.25 + c.y * 0.8, c.z + sz * 6);
       cam.lookAt(tmpV);
-      setFov(v, 58 + 14 * Math.min(1, spd / Car.MAX) + (c.boost > 0 ? 7 : 0));
+      setFov(v, 58 + 14 * Math.min(1, spd / Car.MAX) + (c.nitro > 0 ? 11 : (c.boost > 0 ? 7 : 0)));
     }
   }
   function setFov(v, f) {
@@ -450,17 +492,23 @@
       e.lap.textContent = t.lap + ' ' + lapOf(c) + '/' + tr.laps;
       e.time.textContent = fmt(c.finished ? c.finishTime : raceTime);
       e.spd.textContent = Math.round(Math.abs(c.s) * 3.6);
-      var ch = c.drift ? Math.min(1, c.charge / 2.4) : 0;
+      var ch = c.nitro > 0 ? c.nitro / Car.NITRO_TIME : (c.drift ? Math.min(1, c.charge / 2.4) : 0);
       e.charge.style.width = (ch * 100) + '%';
-      e.charge.style.background = c.charge >= 2.4 ? '#ff9b2f' : (c.charge >= 1.1 ? '#4fb3ff' : '#cfd6e4');
-      e.chargeBox.style.opacity = c.drift || c.boost > 0 ? 1 : 0.25;
-      var msg = '';
+      e.charge.style.background = c.nitro > 0 ? '#38e8ff' : (c.charge >= 2.4 ? '#ff9b2f' : (c.charge >= 1.1 ? '#4fb3ff' : '#cfd6e4'));
+      e.chargeBox.style.opacity = c.drift || c.boost > 0 || c.nitro > 0 ? 1 : 0.25;
+      if (c.nitroMsg > 0) c.nitroMsg -= 0.1;
+      if (c.crashMsg > 0) c.crashMsg -= 0.1;
+      if (c.hitMsg > 0) c.hitMsg -= 0.1;
+      var msg = '', kind = '';
       if (state === 'count') msg = lastCount > 0 ? String(lastCount) : t.go;
       else if (state === 'race' && raceTime < 1) msg = t.go;
       else if (c.finished) msg = t.finish + ' · ' + c.place;
+      else if (c.crashMsg > 0) { msg = t.crash; kind = ' crash'; }
+      else if (c.hitMsg > 0) { msg = t.hitIt; kind = ' hit'; }
+      else if (c.nitroMsg > 0) { msg = t.nitro; kind = ' nitro'; }
       else if (c.wrongWay > 60) msg = t.wrong;
       e.msg.textContent = msg;
-      e.msg.className = 'msg' + (msg && (state === 'count' || (state === 'race' && raceTime < 1)) ? ' big' : '');
+      e.msg.className = 'msg' + (msg && (state === 'count' || (state === 'race' && raceTime < 1)) ? ' big' : kind);
     }
     phoneT -= 0.1;
     if (phoneT <= 0) { phoneT = 0.5; if (state === 'race' || state === 'count') tellPhones(); }
@@ -551,6 +599,7 @@
       var h = dt / steps;
       for (var s = 0; s < steps; s++) step(h);
       fx.update(dt, cars, state === 'race');
+      pickups.update(dt, cars, state === 'race' ? takeNitro : null);
       if (state !== 'lobby') players.forEach(function (p, i) {
         var e = Sfx.engine(p.slot);
         if (e && p.car) e.set(p.car, players.length > 1 ? 0.6 : 1, true);
@@ -573,5 +622,5 @@
   setState('lobby');
   Net.start(onNet);
   requestAnimationFrame(frame);
-  window.Game = { cars: function () { return cars; }, track: tr, players: players, state: function () { return state; }, start: startRace };
+  window.Game = { cars: function () { return cars; }, track: tr, pickups: pickups, players: players, state: function () { return state; }, start: startRace };
 })();

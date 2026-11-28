@@ -47,10 +47,11 @@ var Sfx = (function () {
     var lo = gears[g - 1], hi = Math.min(gears[g], 60);
     var rpm = 0.25 + 0.75 * Math.min(1, (sp - lo) / (hi - lo));
     var thr = (car.input & 4) || car.aiGas || car.drift ? 1 : 0.5;
-    var f = 38 + rpm * 70 + g * 8 + (car.boost > 0 ? 10 : 0);
+    var hot = car.boost > 0 || car.nitro > 0;
+    var f = 38 + rpm * 70 + g * 8 + (hot ? 10 : 0);
     this.o1.frequency.setTargetAtTime(f, t, 0.05);
     this.o2.frequency.setTargetAtTime(f * 0.5, t, 0.05);
-    this.f.frequency.setTargetAtTime(500 + rpm * 1500 * thr + (car.boost > 0 ? 600 : 0), t, 0.05);
+    this.f.frequency.setTargetAtTime(500 + rpm * 1500 * thr + (hot ? 600 : 0), t, 0.05);
     this.g.gain.setTargetAtTime(on ? vol * (0.1 + 0.08 * thr) : 0, t, 0.08);
     var sq = on && sp > 6 && (car.drift || car.hand || car.slip > 0.22) ? Math.min(1, car.slip * 1.5 + (car.drift ? 0.3 : 0)) : 0;
     this.ng.gain.setTargetAtTime(sq * vol * 0.12, t, 0.05);

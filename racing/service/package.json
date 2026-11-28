@@ -1,6 +1,6 @@
 {
   "name": "com.ekrani.racing.service",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Racing LAN server for phone controllers",
   "main": "index.js",
   "license": "MIT"

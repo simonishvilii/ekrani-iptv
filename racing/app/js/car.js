@@ -17,6 +17,9 @@ var Car = (function () {
   var BRAKE = 30;
   var REV_MAX = 12, REV_ACC = 9;
   var WHEEL_R = 0.36;
+  var PIVOT = 0.7;       // centre of mass height
+  var GRAV = 22;
+  var NITRO_TIME = 3;
   var BITS = { left: 1, right: 2, gas: 4, brake: 8, hand: 16, drift: 32 };
 
   /* ---------- model ---------- */
@@ -94,7 +97,9 @@ var Car = (function () {
       boxAt(0.5, 0.12, 0.05, -0.6, 0.62, -2.11, 0xff2b2b), boxAt(0.5, 0.12, 0.05, 0.6, 0.62, -2.11, 0xff2b2b)
     ]), lightMat);
     var g = new THREE.Group();
-    var tilt = new THREE.Group();     // body roll / pitch, wheels stay level
+    var tilt = new THREE.Group();     // body roll / pitch / flip around the centre of mass, wheels stay level
+    body.position.y = -PIVOT; lights.position.y = -PIVOT;
+    tilt.position.y = PIVOT;
     tilt.add(body); tilt.add(lights);
     g.add(tilt);
     g.userData.tilt = tilt;
@@ -143,6 +148,10 @@ var Car = (function () {
     this.spin = 0; this.roll = 0; this.pitch = 0; this.accel = 0;
     this.impact = 0;                // last wall / car hit strength (for buzz, shake, sound)
     this.wrongWay = 0;
+    this.nitro = 0;                 // seconds of nitro left (from a canister on the road)
+    this.wreck = 0;                 // seconds without control after being hit
+    this.immune = 0;                // a moment after a wreck in which it cannot be knocked again
+    this.y = 0; this.vy = 0; this.flip = 0; this.flipRate = 0; this.air = false;
     this.loc = { i: 0, lat: 0, along: 0 };
   }
 
@@ -151,6 +160,7 @@ var Car = (function () {
     this.x = o.x; this.z = o.z; this.heading = o.heading;
     this.vx = this.vz = this.s = this.l = this.omega = this.steer = 0;
     this.drift = 0; this.charge = 0; this.boost = 0; this.boostLevel = 0; this.input = 0;
+    this.nitro = 0; this.wreck = 0; this.immune = 0; this.y = 0; this.vy = 0; this.flip = 0; this.flipRate = 0; this.air = false;
     this.finished = false; this.finishTime = 0;
     Track.locate(tr, this.x, this.z, o.i, this.loc, true);
     this.idx = this.loc.i; this.along = this.loc.along; this.lat = this.loc.lat;
@@ -165,11 +175,15 @@ var Car = (function () {
   }
 
   C.prototype.update = function (dt, tr, racing) {
-    var b = racing ? this.input : 0;
+    if (this.air) return this.fly(dt, tr);
+    var wrecked = this.wreck > 0;
+    if (wrecked) { this.wreck -= dt; if (this.wreck <= 0) this.immune = 1.2; }
+    else if (this.immune > 0) this.immune -= dt;
+    var b = racing && !wrecked ? this.input : 0;
     var left = b & BITS.left, right = b & BITS.right, gas = !!(b & BITS.gas), brake = !!(b & BITS.brake);
     var hand = !!(b & BITS.hand), driftBtn = !!(b & BITS.drift);
     var target = (right ? 1 : 0) - (left ? 1 : 0);
-    if (this.ai && racing) { target = this.aiSteer; gas = this.aiGas; brake = this.aiBrake; hand = false; driftBtn = false; }
+    if (this.ai && racing && !wrecked) { target = this.aiSteer; gas = this.aiGas; brake = this.aiBrake; hand = false; driftBtn = false; }
 
     // steering ramp: ~0.2 s to full lock, faster back to centre
     if (this.ai) this.steer += (target - this.steer) * Math.min(1, dt * 8);
@@ -207,6 +221,7 @@ var Car = (function () {
       omega = -this.steer * k * sgn;
       if (hand) omega *= 1.6;
     }
+    if (wrecked) { omega = this.omega * Math.exp(-dt * 1.1); this.steer = 0; }   // spinning out: nothing to steer with
     this.omega += (omega - this.omega) * Math.min(1, dt * 12);
     this.heading += this.omega * dt;
 
@@ -214,20 +229,21 @@ var Car = (function () {
     fx = Math.sin(this.heading); fz = Math.cos(this.heading); rx = fz; rz = -fx;
     s = this.vx * fx + this.vz * fz; l = this.vx * rx + this.vz * rz;
 
-    var grip = this.drift ? 2.4 : (hand ? 1.3 : 10);
+    var grip = wrecked ? 1.1 : (this.drift ? 2.4 : (hand ? 1.3 : 10));
     if (this.offroad) grip *= 0.8;
     var l2 = l * Math.exp(-grip * dt);
     s += Math.abs(l - l2) * (this.drift ? 0.45 : 0.1) * (s >= 0 ? 1 : -1);
     l = l2;
 
     // throttle / brake
-    var maxS = MAX * this.skill * (this.offroad ? 0.55 : 1) + (this.boost > 0 ? 10 : 0);
+    var extra = this.nitro > 0 ? 15 : (this.boost > 0 ? 10 : 0);
+    var maxS = MAX * this.skill * (this.offroad ? 0.55 : 1) + extra;
     var s0 = s;
     if (brake && s > 1) s -= BRAKE * dt;
     else if (brake) s = Math.max(-REV_MAX, s - REV_ACC * dt);
     else if (gas) {
       if (s < 0) s += BRAKE * dt;
-      else if (s < maxS) s += ACC * (1 - (s / maxS) * (s / maxS)) * dt + (this.boost > 0 ? 14 * dt : 0);
+      else if (s < maxS) s += ACC * (1 - (s / maxS) * (s / maxS)) * dt + (this.nitro > 0 ? 22 * dt : (this.boost > 0 ? 14 * dt : 0));
     } else {
       var coast = (2.5 + 0.0009 * s * s) * dt;
       s -= Math.abs(s) < coast ? s : (s > 0 ? coast : -coast);
@@ -236,6 +252,8 @@ var Car = (function () {
     if (hand) { var hb = 7 * dt; s -= Math.abs(s) < hb ? s : (s > 0 ? hb : -hb); }
     this.accel = (s - s0) / Math.max(dt, 1e-4);
     if (this.boost > 0) { this.boost -= dt; if (this.boost <= 0) this.boostLevel = 0; }
+    if (this.nitro > 0) this.nitro = Math.max(0, this.nitro - dt);
+    if (wrecked) { var fr = 7 * dt; s -= Math.abs(s) < fr ? s : (s > 0 ? fr : -fr); }
 
     this.vx = fx * s + rx * l;
     this.vz = fz * s + rz * l;
@@ -254,6 +272,47 @@ var Car = (function () {
     this.roll += (rollT - this.roll) * Math.min(1, dt * 6);
     this.pitch += (pitchT - this.pitch) * Math.min(1, dt * 6);
   };
+
+  /* hit by another car: (nx, nz) is the push direction, power the closing speed in m/s */
+  C.prototype.knock = function (nx, nz, power, flip) {
+    if (this.wreck > 0 || this.air || this.immune > 0) return false;
+    this.wreck = Math.min(2.6, 1.2 + power * 0.07);
+    this.drift = 0; this.charge = 0; this.boost = 0; this.boostLevel = 0; this.nitro = 0;
+    // shoved sideways (into the barrier, if it is close) and set spinning
+    this.vx += nx * power * 0.35; this.vz += nz * power * 0.35;
+    var side = nx * Math.cos(this.heading) - nz * Math.sin(this.heading);   // pushed toward its left or its right
+    this.omega = (side >= 0 ? 1 : -1) * Math.min(9, 3.5 + power * 0.3);
+    if (flip) {
+      this.air = true;
+      this.vy = Math.min(10, 6 + power * 0.18);
+      var flight = 2 * this.vy / GRAV, turns = power > 20 ? 2 : 1;
+      this.flipRate = (side >= 0 ? -1 : 1) * turns * Math.PI * 2 / flight;
+      this.omega *= 0.5;
+    }
+    this.impact = Math.max(this.impact, power);
+    return true;
+  };
+
+  /* airborne after a hard hit: ballistic, rolling over, lands on its wheels */
+  C.prototype.fly = function (dt, tr) {
+    this.vy -= GRAV * dt;
+    this.y += this.vy * dt;
+    this.flip += this.flipRate * dt;
+    this.heading += this.omega * dt;
+    this.x += this.vx * dt; this.z += this.vz * dt;
+    this.spin += this.s * dt / WHEEL_R;
+    if (this.y <= 0 && this.vy < 0) {
+      this.y = 0; this.flip = 0; this.flipRate = 0; this.air = false;
+      this.vx *= 0.55; this.vz *= 0.55;
+      this.impact = Math.max(this.impact, 9);
+      this.landed = true;           // the game plays the landing (sound, shake)
+    }
+    var fx = Math.sin(this.heading), fz = Math.cos(this.heading);
+    this.s = this.vx * fx + this.vz * fz;
+    this.trackUpdate(tr);
+  };
+
+  C.prototype.takeNitro = function () { this.nitro = NITRO_TIME; };
 
   C.prototype.trackUpdate = function (tr) {
     var loc = Track.locate(tr, this.x, this.z, this.idx, this.loc, false);
@@ -287,22 +346,38 @@ var Car = (function () {
 
   C.prototype.sync = function () {
     var m = this.mesh;
-    m.position.set(this.x, 0, this.z);
+    m.position.set(this.x, this.y, this.z);
     m.rotation.y = this.heading;
     var t = m.userData.tilt;
-    t.rotation.z = this.roll;
+    t.rotation.z = this.roll + this.flip;
     t.rotation.x = this.pitch;
-    t.position.y = this.drift ? Math.sin(this.charge * 40) * 0.01 : 0;
+    t.position.y = PIVOT + (this.drift ? Math.sin(this.charge * 40) * 0.01 : 0);
   };
 
   var tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler(0, 0, 0, 'YXZ'), tmpP = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
+  var bodyM = new THREE.Matrix4(), rollM = new THREE.Matrix4(), offM = new THREE.Matrix4();
   C.prototype.wheelMatrices = function (inst, base) {
-    var c = Math.cos(this.heading), s = Math.sin(this.heading);
-    for (var w = 0; w < 4; w++) {
-      var wx = WHEELS[w][0], wz = WHEELS[w][1];
+    var c = Math.cos(this.heading), s = Math.sin(this.heading), w, wx, wz;
+    if (this.air) {
+      // car frame: position, heading, roll around the centre of mass
+      bodyM.makeRotationY(this.heading).setPosition(this.x, this.y, this.z);
+      offM.makeTranslation(0, PIVOT, 0); bodyM.multiply(offM);
+      rollM.makeRotationZ(this.flip); bodyM.multiply(rollM);
+      offM.makeTranslation(0, -PIVOT, 0); bodyM.multiply(offM);
+      for (w = 0; w < 4; w++) {
+        tmpP.set(WHEELS[w][0], WHEEL_R, WHEELS[w][1]);
+        tmpE.set(this.spin, 0, 0);
+        tmpQ.setFromEuler(tmpE);
+        tmpM.compose(tmpP, tmpQ, one).premultiply(bodyM);
+        inst.setMatrixAt(base + w, tmpM);
+      }
+      return;
+    }
+    for (w = 0; w < 4; w++) {
+      wx = WHEELS[w][0]; wz = WHEELS[w][1];
       tmpP.set(this.x + wx * c + wz * s, WHEEL_R, this.z - wx * s + wz * c);
       // front wheels: steering; in a drift they point against the slide (counter-steer look)
-      var steerA = WHEELS[w][2] ? (this.drift ? this.driftDir * 0.3 : -this.steer * 0.42) : 0;
+      var steerA = WHEELS[w][2] ? (this.drift ? this.driftDir * 0.3 : (this.wreck > 0 ? 0 : -this.steer * 0.42)) : 0;
       tmpE.set(this.spin, this.heading + steerA, 0);
       tmpQ.setFromEuler(tmpE);
       tmpM.compose(tmpP, tmpQ, one);
@@ -347,5 +422,5 @@ var Car = (function () {
     this.aiBrake = s > vt + 4;
   };
 
-  return { create: function (o) { return new C(o); }, wheelGeometry: wheelGeometry, BITS: BITS, MAX: MAX };
+  return { create: function (o) { return new C(o); }, wheelGeometry: wheelGeometry, BITS: BITS, MAX: MAX, NITRO_TIME: NITRO_TIME };
 })();

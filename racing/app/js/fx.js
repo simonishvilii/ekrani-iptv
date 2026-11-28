@@ -100,7 +100,7 @@ var Fx = (function () {
       var c = cars[i];
       var fx = Math.sin(c.heading), fz = Math.cos(c.heading), rx = fz, rz = -fx;
       var spd = Math.abs(c.s);
-      var sliding = playing && spd > 6 && (c.drift || c.hand || c.slip > 0.22);
+      var sliding = playing && !c.air && spd > 6 && (c.drift || c.hand || c.slip > 0.22 || c.wreck > 0);
       for (var w = 0; w < 2; w++) {
         var side = w ? 0.9 : -0.9;
         var wx = c.x + rx * side - fx * 1.3, wz = c.z + rz * side - fz * 1.3;
@@ -117,18 +117,32 @@ var Fx = (function () {
             0.25 + Math.random() * 0.15, 0.35, 0.12, orange ? 1 : 0.35, orange ? 0.6 : 0.75, orange ? 0.15 : 1, 1);
         }
       }
-      // boost: exhaust flames
-      if (c.boost > 0) {
+      // boost: orange exhaust flames; nitro: bigger blue-white ones
+      if (c.nitro > 0) {
+        for (var e2 = 0; e2 < 2; e2++) {
+          this.emit(c.x - fx * 2.25 + rx * (e2 ? 0.45 : -0.45), 0.42, c.z - fz * 2.25 + rz * (e2 ? 0.45 : -0.45),
+            c.vx * 0.6 - fx * 8, Math.random() * 0.6, c.vz * 0.6 - fz * 8, 0.22, 1.1, 0.25, 0.45, 0.85, 1, 0.95);
+        }
+      } else if (c.boost > 0) {
         for (var e = 0; e < 2; e++) {
           var lvl2 = c.boostLevel === 2;
           this.emit(c.x - fx * 2.25 + rx * (e ? 0.45 : -0.45), 0.42, c.z - fz * 2.25 + rz * (e ? 0.45 : -0.45),
             c.vx * 0.7 - fx * 6, Math.random(), c.vz * 0.7 - fz * 6, 0.16, 0.7, 0.2, 1, lvl2 ? 0.55 : 0.8, lvl2 ? 0.15 : 0.35, 0.95);
         }
       }
+      // a car landing after a flip throws up dust
+      if (c.dust) {
+        c.dust = false;
+        for (var dd = 0; dd < 14; dd++) {
+          this.emit(c.x + (Math.random() - 0.5) * 3, 0.4, c.z + (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 6, 1 + Math.random() * 2,
+            (Math.random() - 0.5) * 6, 1 + Math.random() * 0.6, 1.4, 4.5, 0.85, 0.82, 0.76, 0.4);
+        }
+      }
       // shadow
       this.q.setFromAxisAngle(this.up, c.heading);
       this.v.set(c.x, 0.06, c.z);
-      this.sc.set(2.7, 1, 5.0);
+      var sh = 1 / (1 + c.y * 0.25);
+      this.sc.set(2.7 * sh, 1, 5.0 * sh);
       this.m4.compose(this.v, this.q, this.sc);
       this.shadows.setMatrixAt(i, this.m4);
     }
