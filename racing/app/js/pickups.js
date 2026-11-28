@@ -134,7 +134,7 @@ var Pickups = (function () {
 
   P.prototype.place = function (it, lane) {
     var o = Track.pointAt(this.tr, it.dist, LANES[lane], {});
-    it.lane = lane; it.x = o.x; it.z = o.z;
+    it.lane = lane; it.lat = LANES[lane]; it.x = o.x; it.z = o.z;
   };
 
   P.prototype.reset = function () {

@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.5.0';
+  var VERSION = '0.6.0';
   var COLORS = [0xe8382f, 0x2f7cf0, 0xf2b922, 0x2fbf62];
   var CSS_COLORS = ['#ff4d4d', '#3d8bff', '#ffc933', '#3ddc84'];
   var AI_NAMES = ['Nika', 'Mari', 'Luka', 'Ana', 'Gio', 'Tako', 'Sandro'];
@@ -72,10 +72,17 @@
     cars = [];
     var humans = players.slice().sort(function (a, b) { return a.slot - b.slot; });
     var aiCount = humans.length > 1 ? AI_MULTI : CARS - humans.length, k;
-    // AI in front, people at the back of the grid: there is someone to catch
+    // AI in front, people at the back of the grid: there is someone to catch.
+    // Top speed 0.88 .. 0.99 of a player's car; the faster ones mostly start further back.
+    var paces = [];
+    for (k = 0; k < aiCount; k++) paces.push(0.88 + 0.11 * k / Math.max(1, aiCount - 1));
+    for (k = 0; k < aiCount - 1; k++) if (Math.random() < 0.4) { var sw = paces[k]; paces[k] = paces[k + 1]; paces[k + 1] = sw; }
     for (k = 0; k < aiCount; k++) {
-      // skill spread 0.9 .. 0.98: the faster ones start further back and come through the field
-      var ai = Car.create({ color: aiColor(k, humans), ai: true, skill: 0.9 + 0.08 * k / Math.max(1, aiCount - 1), name: AI_NAMES[k % AI_NAMES.length] });
+      // and a driving style of its own (see Car.think)
+      var style = { corner: 26 + Math.random() * 8, power: 0.93 + Math.random() * 0.13, line: 0.2 + Math.random() * 0.7,
+        calm: Math.random(), greed: Math.random(), band: 0.0006 + Math.random() * 0.001,
+        period: 9 + Math.random() * 14, phase: Math.random() * 6.28 };
+      var ai = Car.create({ color: aiColor(k, humans), ai: true, skill: paces[k], style: style, name: AI_NAMES[k % AI_NAMES.length] });
       cars.push(ai);
     }
     humans.forEach(function (p) {
@@ -343,8 +350,8 @@
       if (c.ai && live) {
         // gentle rubber band: AI far ahead of the best human takes bends a bit slower, far behind a bit faster
         var gap = lead - c.raceDist;
-        c.rubber = Math.max(0.88, Math.min(1.1, 1 + gap * 0.0015));
-        c.think(tr, cars, dt);
+        c.rubber = Math.max(0.9, Math.min(1.08, 1 + gap * (c.style ? c.style.band : 0.0015)));
+        c.think(tr, cars, dt, pickups.items);
       }
       var hadBoost = c.boost > 0;
       c.update(dt, tr, c.ai ? live : racing && !c.finished);

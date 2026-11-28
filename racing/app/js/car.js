@@ -228,6 +228,10 @@ var Car = (function () {
     this.name = opts.name || '';
     this.ai = !!opts.ai;
     this.skill = opts.skill || 1;
+    // AI personality (see game.js): corner, power, line, calm, greed, band, period, phase
+    this.style = opts.style || null;
+    this.power = this.style ? this.style.power : 1;
+    this.paceMod = 1; this.aiT = 0; this.mistake = 0; this.mistakeKind = 0; this.mistakeT = 0;
     this.mesh = model(opts.color);
     this.x = 0; this.z = 0; this.heading = 0;
     this.vx = 0; this.vz = 0; this.s = 0; this.l = 0; this.omega = 0;
@@ -333,13 +337,13 @@ var Car = (function () {
     // throttle / brake
     // slipstream: less air to push behind another car, so more pull and a higher top speed
     var extra = (this.nitro > 0 ? 15 : (this.boost > 0 ? 10 : 0)) + this.draft * 4;
-    var maxS = MAX * this.skill * (this.offroad ? 0.55 : 1) + extra;
+    var maxS = MAX * this.skill * this.paceMod * (this.offroad ? 0.55 : 1) + extra;
     var s0 = s;
     if (brake && s > 1) s -= BRAKE * dt;
     else if (brake) s = Math.max(-REV_MAX, s - REV_ACC * dt);
     else if (gas) {
       if (s < 0) s += BRAKE * dt;
-      else if (s < maxS) s += ACC * (1 - (s / maxS) * (s / maxS)) * dt + (this.nitro > 0 ? 22 * dt : (this.boost > 0 ? 14 * dt : 0)) + this.draft * 4 * dt;
+      else if (s < maxS) s += ACC * this.power * (1 - (s / maxS) * (s / maxS)) * dt + (this.nitro > 0 ? 22 * dt : (this.boost > 0 ? 14 * dt : 0)) + this.draft * 4 * dt;
     } else {
       var coast = (2.5 + 0.0009 * s * s) * dt;
       s -= Math.abs(s) < coast ? s : (s > 0 ? coast : -coast);
@@ -484,22 +488,86 @@ var Car = (function () {
   /* ---------- AI ---------- */
 
   var tmpPt = {};
-  C.prototype.think = function (tr, cars, dt) {
-    var s = this.s;
-    // lane: drift slowly, step aside when someone is just ahead
+
+  /* for every track point: which side (+1 / -1 in lateral offset) is the inside of the bend */
+  function insideOf(tr) {
+    if (tr.inside) return tr.inside;
+    var n = tr.n, a = new Int8Array(n), k = 4;
+    for (var i = 0; i < n; i++) {
+      var p0 = (i - k + n) % n, p1 = (i + k) % n;
+      var mx = (tr.px[p0] + tr.px[p1]) / 2 - tr.px[i], mz = (tr.pz[p0] + tr.pz[p1]) / 2 - tr.pz[i];
+      a[i] = mx * tr.nx[i] + mz * tr.nz[i] >= 0 ? 1 : -1;
+    }
+    tr.inside = a;
+    return a;
+  }
+
+  /* Each AI driver has its own style: some cut the apex, some stay wide; their pace comes and goes
+     a little (tyres, focus); now and then one runs wide or lifts; greedy ones go for nitro. They pass
+     slower cars on the side with more room. */
+  C.prototype.think = function (tr, cars, dt, items) {
+    var s = this.s, st = this.style || { corner: 30, line: 0.4, calm: 0.7, greed: 0, period: 15, phase: 0 };
+    var n = tr.n, L = tr.length, edge = tr.hw - 1.6, inside = insideOf(tr);
+    this.aiT += dt;
+    this.paceMod = 1 + 0.035 * Math.sin(this.aiT * 6.283 / st.period + st.phase);
+
+    // racing line: wide before a bend, inside at the apex (how much: the driver's line)
+    var span = Math.ceil(55 / tr.seg), best = 0, bi = -1, bk = 0, k;
+    for (k = 1; k < span; k++) {
+      var b = tr.bend[(this.idx + k) % n];
+      if (b > best) { best = b; bi = (this.idx + k) % n; bk = k; }
+    }
+    var goal = 0;
+    if (best > 1 / 160) {
+      var dist = bk * tr.seg, amt = st.line * Math.min(1, best * 90) * edge;
+      goal = dist < 18 ? inside[bi] * amt : -inside[bi] * amt * 0.6;
+    }
+    // a little wander of its own
     this.laneT -= dt;
-    if (this.laneT <= 0) { this.laneT = 2 + Math.random() * 3; this.laneGoal = (Math.random() - 0.5) * (tr.hw * 0.9); }
-    if (this.laneGoal === undefined) this.laneGoal = this.lane;
-    for (var i = 0; i < cars.length; i++) {
-      var o = cars[i];
-      if (o === this) continue;
-      var ahead = o.raceDist - this.raceDist;
-      if (ahead > 0 && ahead < 14 && Math.abs(o.lat - this.lane) < 2.6) {
-        this.laneGoal = o.lat > 0 ? o.lat - 3.4 : o.lat + 3.4;
-        this.laneGoal = Math.max(-tr.hw + 1.5, Math.min(tr.hw - 1.5, this.laneGoal));
+    if (this.laneT <= 0) { this.laneT = 3 + Math.random() * 4; this.wander = (Math.random() - 0.5) * 3; }
+    goal += this.wander || 0;
+
+    // nitro on the road ahead: the greedy ones steer for it
+    if (items && st.greed > 0.45) {
+      for (k = 0; k < items.length; k++) {
+        var it = items[k];
+        if (it.away > 0) continue;
+        var ah = ((it.dist - this.along) % L + L) % L;
+        if (ah > 8 && ah < 70) { goal = it.lat; break; }
       }
     }
-    this.lane += (this.laneGoal - this.lane) * Math.min(1, dt * 0.8);
+
+    // traffic: a slower car just ahead in our path -> go round it on the side with more room;
+    // never swerve into a car that is alongside, and ease off when there is no way round yet
+    var blocked = false, follow = 1e9, followS = 0, sideL = false, sideR = false, i, o, ahead;
+    for (i = 0; i < cars.length; i++) {
+      o = cars[i];
+      if (o === this) continue;
+      ahead = o.raceDist - this.raceDist;
+      var dl = o.lat - this.lat;
+      if (ahead > -7 && ahead < 7 && Math.abs(dl) < 4.2) { if (dl > 0) sideR = true; else sideL = true; }
+      if (ahead > 0 && ahead < 18 && Math.abs(o.lat - this.lane) < 2.7) {
+        var side = o.lat > 0.5 ? -1 : (o.lat < -0.5 ? 1 : (this.lat >= o.lat ? 1 : -1));
+        if ((side > 0 && sideR) || (side < 0 && sideL)) side = -side;
+        goal = o.lat + side * 3.6;
+        blocked = true;
+      }
+      if (ahead > 0 && ahead < follow && Math.abs(dl) < 2.4) { follow = ahead; followS = o.s; }
+    }
+
+    // mistakes: rare for calm drivers; run wide (1) or lift off (2) for a moment
+    if (this.mistake > 0) this.mistake -= dt;
+    else if (Math.random() < dt * (0.012 + (1 - st.calm) * 0.05)) {
+      this.mistake = 0.8 + Math.random() * 1.2;
+      this.mistakeKind = best > 1 / 120 && Math.random() < 0.6 ? 1 : 2;
+    }
+    if (this.mistake > 0 && this.mistakeKind === 1 && bi >= 0) goal = this.lat + (-inside[bi] * edge - this.lat) * 0.5;
+
+    goal = Math.max(-edge, Math.min(edge, goal));
+    // the side we would move to is taken: hold the line for now
+    if ((goal > this.lat + 0.3 && sideR) || (goal < this.lat - 0.3 && sideL)) goal = this.lat;
+    this.laneGoal = goal;
+    this.lane += (goal - this.lane) * Math.min(1, dt * (blocked ? 1.4 : 0.9));
 
     var look = 9 + Math.abs(s) * 0.45;
     Track.pointAt(tr, this.along + look, this.lane, tmpPt);
@@ -512,10 +580,13 @@ var Car = (function () {
     // speed for the sharpest bend in the braking distance ahead
     var n = tr.n, from = this.idx, span = Math.ceil((Math.abs(s) * 1.4 + 20) / tr.seg), bend = 0;
     for (var k = 2; k < span; k++) bend = Math.max(bend, tr.bend[(from + k) % n] * (1 - k / (span * 2.2)));
-    var vt = bend > 1e-4 ? Math.sqrt(30 * this.skill / bend) : MAX;
-    vt *= this.rubber || 1;
-    this.aiGas = s < vt - 0.5;
-    this.aiBrake = s > vt + 4;
+    var vt = bend > 1e-4 ? Math.sqrt(st.corner * this.skill / bend) : MAX;
+    vt *= (this.rubber || 1) * this.paceMod;
+    if (this.mistake > 0 && this.mistakeKind === 1) vt *= 1.12;     // came in too fast
+    // right behind a slower car: match its speed instead of running into it
+    if (follow < 12 && followS < s) vt = Math.min(vt, followS + (follow - 5) * 0.8);
+    this.aiGas = s < vt - 0.5 && !(this.mistake > 0 && this.mistakeKind === 2);
+    this.aiBrake = s > vt + (follow < 8 ? 1 : 4);
   };
 
   return { create: function (o) { return new C(o); }, wheelGeometry: wheelGeometry, BITS: BITS, MAX: MAX, NITRO_TIME: NITRO_TIME };

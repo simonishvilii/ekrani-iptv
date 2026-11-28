@@ -31,7 +31,6 @@ var Net = (function () {
       startService();
       // keep the service from idling out even if the subscription is dropped
       setInterval(function () { luna(SERVICE + 'ping', {}, null); }, 30000);
-      screenSaver();
     } else {
       // computer: the dev server tells where the game server is (?ws=host:port to override)
       var m = /[?&]ws=([^&]+)/.exec(location.search);
@@ -80,21 +79,9 @@ var Net = (function () {
 
   function raw(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
 
-  /* webOS: keep the screen saver away while people play with phones (no remote key presses).
-     Two ways: answer the TV's screen saver request with "no" (if the TV lets this app ask), and play a
-     tiny black video hidden behind the canvas (the TV does not start the screen saver during video). */
-  var ssOn = true, ssState = '-', ssAsked = 0;
-  function screenSaver() {
-    var id = 'com.ekrani.racing';
-    ssState = '…';
-    luna('luna://com.webos.service.tvpower/power/registerScreenSaverRequest', { subscribe: true, clientName: id }, function (r) {
-      if (!r) { ssState = '?'; return; }
-      if (r.returnValue === false) { ssState = 'x' + (r.errorCode !== undefined ? r.errorCode : ''); return; }
-      if (!r.timestamp) { ssState = 'ok'; return; }
-      ssAsked++;
-      luna('luna://com.webos.service.tvpower/power/responseScreenSaverRequest', { clientName: id, ack: ssOn, timestamp: r.timestamp }, null);
-    });
-  }
+  /* webOS: keep the screen saver away while people play with phones (the remote sends no keys).
+     The TV does not let this app answer its screen saver request (tvpower: error -3), but it never
+     starts the screen saver during video: a tiny black muted clip plays hidden behind the canvas. */
 
   var vid = null, vidState = '-';
   function keepAwake(on) {
@@ -122,8 +109,8 @@ var Net = (function () {
     to: function (id, m) { if (typeof id === 'number') raw({ t: 'to', id: id, m: m }); },
     all: function (m) { raw({ t: 'all', m: m }); },
     kick: function (id) { raw({ t: 'kick', id: id }); },
-    allowScreenSaver: function (on) { ssOn = on; keepAwake(!on); },
-    awake: function () { return 'ss ' + ssState + (ssAsked ? '/' + ssAsked : '') + ' · vid ' + vidState; },
+    allowScreenSaver: function (on) { keepAwake(!on); },
+    awake: function () { return 'vid ' + vidState; },
     online: function () { return !!(ws && ws.readyState === 1); }
   };
 })();
