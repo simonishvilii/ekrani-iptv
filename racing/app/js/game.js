@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.4.0';
+  var VERSION = '0.5.0';
   var COLORS = [0xe8382f, 0x2f7cf0, 0xf2b922, 0x2fbf62];
   var CSS_COLORS = ['#ff4d4d', '#3d8bff', '#ffc933', '#3ddc84'];
   var AI_NAMES = ['Nika', 'Mari', 'Luka', 'Ana', 'Gio', 'Tako', 'Sandro'];
@@ -40,16 +40,15 @@
   var W = window.innerWidth, H = window.innerHeight;
   var canvas = $('gl');
   var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'high-performance', stencil: false });
-  var scale = 0.9;     // render resolution vs. the screen (adapts, see adapt())
+  var scale = 0.8;     // render resolution vs. the screen (adapts, see adapt())
   renderer.setPixelRatio(scale);
   renderer.setSize(W, H);
   renderer.setScissorTest(true);
-  renderer.outputEncoding = THREE.sRGBEncoding;
 
   var scene = new THREE.Scene();
   var tr = Track.build('mountain');
   if (tr.minRadius < tr.wall + 4) console.warn('track: tight bend, radius ' + tr.minRadius.toFixed(1) + ' m');
-  var world = World.build(scene, tr, renderer.capabilities.getMaxAnisotropy());
+  var world = World.build(scene, tr);
   var hemi = new THREE.HemisphereLight(0xdfe9ff, 0x5d6b40, 0.8);
   scene.add(hemi);
   var sun = new THREE.DirectionalLight(0xfff0d8, 0.9);
@@ -636,12 +635,13 @@
   /* Dynamic resolution. The TV refreshes at 60 Hz, so a healthy frame rate reads 56..60: climb back
      when it is there, step down only when it stays low for two seconds (not on a single hitch while
      loading or at the start), and do not climb straight back to a level that was too slow. */
-  var frames = 0, acc = 0, adaptT = 0, good = 0, low = 0, fps = 60, warm = 4, cap = 1, capT = 0;
-  function adapt(dt) {
-    frames++; acc += dt; adaptT += dt;
+  var frames = 0, acc = 0, adaptT = 0, good = 0, low = 0, fps = 60, warm = 4, cap = 1, capT = 0, cpuAcc = 0;
+  function adapt(dt, cpu) {
+    frames++; acc += dt; adaptT += dt; cpuAcc += cpu;
     if (adaptT < 1) return;
     fps = frames / acc;
-    frames = 0; acc = 0; adaptT = 0;
+    var cpuMs = cpuAcc / frames;
+    frames = 0; acc = 0; adaptT = 0; cpuAcc = 0;
     var target = scale;
     if (capT > 0) { capT -= 1; if (capT <= 0) cap = 1; }
     if (warm > 0) warm -= 1;
@@ -656,7 +656,7 @@
     if (target !== scale) { scale = target; renderer.setPixelRatio(scale); renderer.setSize(W, H); }
     var info = renderer.info.render;
     $('dbg').textContent = VERSION + ' · ' + Math.round(fps) + ' fps · ' + Math.round(W * scale) + '×' + Math.round(H * scale) +
-      ' · ' + info.calls + ' calls · ' + Math.round(info.triangles / 1000) + 'k tris · audio ' + Sfx.state();
+      ' · cpu ' + cpuMs.toFixed(1) + ' ms · ' + info.calls + ' calls · ' + Math.round(info.triangles / 1000) + 'k tris · audio ' + Sfx.state() + ' · ' + Net.awake();
   }
 
   window.addEventListener('resize', function () {
@@ -668,6 +668,7 @@
   var last = performance.now();
   function frame(now) {
     requestAnimationFrame(frame);
+    var t0 = performance.now();
     var dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     clock += dt;
@@ -686,7 +687,7 @@
     cameras(dt);
     hud(dt);
     render();
-    adapt(dt);
+    adapt(dt, performance.now() - t0);   // cpu: the time this frame's script took (physics, scene, draw calls)
   }
 
   /* ---------- start ---------- */

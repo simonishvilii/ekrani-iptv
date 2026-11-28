@@ -80,14 +80,40 @@ var Net = (function () {
 
   function raw(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
 
-  /* webOS: keep the screen saver away while people play with phones (no remote key presses) */
-  var ssOn = true;
+  /* webOS: keep the screen saver away while people play with phones (no remote key presses).
+     Two ways: answer the TV's screen saver request with "no" (if the TV lets this app ask), and play a
+     tiny black video hidden behind the canvas (the TV does not start the screen saver during video). */
+  var ssOn = true, ssState = '-', ssAsked = 0;
   function screenSaver() {
     var id = 'com.ekrani.racing';
+    ssState = '…';
     luna('luna://com.webos.service.tvpower/power/registerScreenSaverRequest', { subscribe: true, clientName: id }, function (r) {
-      if (!r || !r.timestamp) return;
+      if (!r) { ssState = '?'; return; }
+      if (r.returnValue === false) { ssState = 'x' + (r.errorCode !== undefined ? r.errorCode : ''); return; }
+      if (!r.timestamp) { ssState = 'ok'; return; }
+      ssAsked++;
       luna('luna://com.webos.service.tvpower/power/responseScreenSaverRequest', { clientName: id, ack: ssOn, timestamp: r.timestamp }, null);
     });
+  }
+
+  var vid = null, vidState = '-';
+  function keepAwake(on) {
+    if (!vid) {
+      if (!on) return;
+      vid = document.createElement('video');
+      vid.muted = true; vid.loop = true;
+      vid.setAttribute('muted', ''); vid.setAttribute('playsinline', '');
+      vid.style.cssText = 'position:fixed;left:0;bottom:0;width:2px;height:2px;z-index:-1;pointer-events:none';
+      vid.src = 'media/keep.mp4';
+      vid.onerror = function () { vidState = 'err' + (vid.error ? vid.error.code : ''); };
+      vid.onplaying = function () { vidState = 'on'; };
+      vid.onpause = function () { if (vidState === 'on') vidState = 'off'; };
+      document.body.insertBefore(vid, document.body.firstChild);
+    }
+    if (on && vid.paused) {
+      var p = vid.play();
+      if (p && p.catch) p.catch(function (e) { vidState = 'blocked'; });
+    } else if (!on && !vid.paused) vid.pause();
   }
 
   return {
@@ -96,7 +122,8 @@ var Net = (function () {
     to: function (id, m) { if (typeof id === 'number') raw({ t: 'to', id: id, m: m }); },
     all: function (m) { raw({ t: 'all', m: m }); },
     kick: function (id) { raw({ t: 'kick', id: id }); },
-    allowScreenSaver: function (on) { ssOn = on; },
+    allowScreenSaver: function (on) { ssOn = on; keepAwake(!on); },
+    awake: function () { return 'ss ' + ssState + (ssAsked ? '/' + ssAsked : '') + ' · vid ' + vidState; },
     online: function () { return !!(ws && ws.readyState === 1); }
   };
 })();

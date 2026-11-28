@@ -1,5 +1,5 @@
 /*
- * Cars: low-poly model (flat-shaded, Lambert = per-vertex light, cheap), arcade handling and the AI driver.
+ * Cars: low-poly model (rounded side profile, smooth-shaded Phong paint), arcade handling and the AI driver.
  *
  * Handling ("velocity follows heading"): the heading turns with the steering, the velocity is pulled
  * toward the heading by tyre grip. Less grip (drift, handbrake) = the car slides. With buttons instead of
@@ -24,25 +24,62 @@ var Car = (function () {
 
   /* ---------- model ---------- */
 
-  function taper(w, h, l, tw, tf, tb, y0, zc) {
-    // bottom: w x l around zc; top: tw wide, from zc - tb to zc + tf
-    var b = [[-w / 2, y0, zc - l / 2], [w / 2, y0, zc - l / 2], [w / 2, y0, zc + l / 2], [-w / 2, y0, zc + l / 2]];
-    var t = [[-tw / 2, y0 + h, zc - tb], [tw / 2, y0 + h, zc - tb], [tw / 2, y0 + h, zc + tf], [-tw / 2, y0 + h, zc + tf]];
-    var faces = [[t[0], t[3], t[2], t[1]], [b[0], b[1], b[2], b[3]], [b[3], b[2], t[2], t[3]], [b[1], b[0], t[0], t[1]], [b[2], b[1], t[1], t[2]], [b[0], b[3], t[3], t[0]]];
-    var pos = [];
-    faces.forEach(function (f) { pos.push.apply(pos, f[0].concat(f[1], f[2], f[0], f[2], f[3])); });
-    var g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    return g;
-  }
-
   function paint(g, color) {
     g = g.index ? g.toNonIndexed() : g;
     g.deleteAttribute('uv');
-    var c = new THREE.Color(color).convertSRGBToLinear(), n = g.attributes.position.count, a = new Float32Array(n * 3);   // linear: deep, saturated paint after the sRGB output
+    var c = new THREE.Color(color), n = g.attributes.position.count, a = new Float32Array(n * 3);
     for (var i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; }
     g.setAttribute('color', new THREE.BufferAttribute(a, 3));
     g.computeVertexNormals();
+    return g;
+  }
+
+  /* colour per face from its normal and centre: fn(nx, ny, nz, cx, cy, cz) -> hex; then smooth normals */
+  function paintFaces(g, fn, cosMax) {
+    g = g.index ? g.toNonIndexed() : g;
+    if (g.attributes.uv) g.deleteAttribute('uv');
+    g.computeVertexNormals();     // non-indexed: the face normal at each corner
+    var p = g.attributes.position, nr = g.attributes.normal, cnt = p.count, a = new Float32Array(cnt * 3), c = new THREE.Color();
+    for (var f = 0; f < cnt; f += 3) {
+      var cx = (p.getX(f) + p.getX(f + 1) + p.getX(f + 2)) / 3, cy = (p.getY(f) + p.getY(f + 1) + p.getY(f + 2)) / 3, cz = (p.getZ(f) + p.getZ(f + 1) + p.getZ(f + 2)) / 3;
+      c.setHex(fn(nr.getX(f), nr.getY(f), nr.getZ(f), cx, cy, cz));
+      for (var k = 0; k < 3; k++) { a[(f + k) * 3] = c.r; a[(f + k) * 3 + 1] = c.g; a[(f + k) * 3 + 2] = c.b; }
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(a, 3));
+    smooth(g, cosMax === undefined ? 0.6 : cosMax);
+    return g;
+  }
+
+  /* average the normals of faces meeting at a corner when they bend less than acos(cosMax): rounded
+     surfaces shade smoothly, real edges stay sharp */
+  function smooth(g, cosMax) {
+    var p = g.attributes.position, nr = g.attributes.normal, cnt = p.count, map = {}, keys = new Array(cnt), i, j;
+    for (i = 0; i < cnt; i++) {
+      var key = Math.round(p.getX(i) * 500) + ',' + Math.round(p.getY(i) * 500) + ',' + Math.round(p.getZ(i) * 500);
+      keys[i] = key;
+      (map[key] || (map[key] = [])).push(i);
+    }
+    var src = nr.array.slice(), out = nr.array;
+    for (i = 0; i < cnt; i++) {
+      var list = map[keys[i]], ax = src[i * 3], ay = src[i * 3 + 1], az = src[i * 3 + 2], sx = 0, sy = 0, sz = 0;
+      for (j = 0; j < list.length; j++) {
+        var o = list[j] * 3;
+        if (ax * src[o] + ay * src[o + 1] + az * src[o + 2] >= cosMax) { sx += src[o]; sy += src[o + 1]; sz += src[o + 2]; }
+      }
+      var l = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
+      out[i * 3] = sx / l; out[i * 3 + 1] = sy / l; out[i * 3 + 2] = sz / l;
+    }
+    nr.needsUpdate = true;
+  }
+
+  /* a side profile (z forward, y up) pushed out across the car with rounded edges, centred on x = 0 */
+  function sideExtrude(draw, width, edge, round) {
+    var s = new THREE.Shape();
+    draw(s);
+    var g = new THREE.ExtrudeGeometry(s, { depth: width - 2 * edge, bevelEnabled: true, bevelThickness: edge, bevelSize: round,
+      bevelSegments: 2, curveSegments: 5 });
+    g.rotateY(-Math.PI / 2);
+    g.translate((width - 2 * edge) / 2, 0, 0);
     return g;
   }
 
@@ -97,35 +134,54 @@ var Car = (function () {
         envMap: envCube(), combine: THREE.MixOperation, reflectivity: 0.16 });
       lightMat = new THREE.MeshBasicMaterial({ vertexColors: true });
     }
-    var dark = 0x1c1f26, glass = 0x1d2a3a, c = new THREE.Color(color);
+    var dark = 0x1c1f26, glass = 0x1b2633, c = new THREE.Color(color);
     var trim = c.clone().multiplyScalar(0.55).getHex();
+    // lower body: rounded side profile with the wheel arches cut out of it
+    var shell = sideExtrude(function (s) {
+      s.moveTo(-2.12, 0.3);
+      s.lineTo(-1.75, 0.3);
+      s.absarc(-1.3, 0.34, 0.45, Math.PI, 0, true);            // rear arch
+      s.lineTo(0.88, 0.3);
+      s.absarc(1.33, 0.34, 0.45, Math.PI, 0, true);            // front arch
+      s.lineTo(2.1, 0.3);
+      s.lineTo(2.2, 0.44);
+      s.quadraticCurveTo(2.24, 0.62, 2.04, 0.72);              // nose
+      s.quadraticCurveTo(1.4, 0.87, 0.8, 0.92);                // bonnet
+      s.lineTo(-1.2, 0.92);
+      s.quadraticCurveTo(-1.85, 0.91, -2.12, 0.82);            // boot lid
+      s.lineTo(-2.19, 0.6);
+      s.lineTo(-2.15, 0.36);
+    }, 1.94, 0.1, 0.05);
+    // cabin: glass all round, the flat top painted (the roof)
+    var cabin = sideExtrude(function (s) {
+      s.moveTo(-1.3, 0.84);
+      s.lineTo(-1.2, 0.93);
+      s.quadraticCurveTo(-0.95, 1.2, -0.62, 1.3);              // rear window
+      s.lineTo(0.12, 1.33);
+      s.quadraticCurveTo(0.45, 1.25, 0.9, 0.93);               // windscreen
+      s.lineTo(0.96, 0.84);
+    }, 1.6, 0.13, 0.06);
     var parts = [
-      paint(taper(1.94, 0.46, 4.25, 1.86, 2.0, 2.08, 0.3, 0), color),               // body
-      paint(taper(1.86, 0.08, 1.5, 1.7, 0.7, 0.7, 0.76, 1.25), color),              // bonnet bulge
-      boxAt(1.98, 0.16, 4.1, 0, 0.26, 0, dark),                                    // skirt
-      paint(taper(1.66, 0.52, 2.15, 1.32, 0.15, 1.12, 0.76, -0.4), glass),          // cabin (glass)
-      paint(taper(1.34, 0.06, 1.24, 1.3, 0.12, 1.08, 1.27, -0.6), color),           // roof
-      boxAt(0.32, 0.02, 2.0, -0.22, 0.775, 1.0, 0xf5f5f0),                          // stripes
-      boxAt(0.32, 0.02, 2.0, 0.22, 0.775, 1.0, 0xf5f5f0),
-      boxAt(1.84, 0.07, 0.42, 0, 1.12, -1.92, trim),                               // spoiler
-      boxAt(0.08, 0.3, 0.16, -0.62, 0.92, -1.9, dark),
-      boxAt(0.08, 0.3, 0.16, 0.62, 0.92, -1.9, dark),
-      boxAt(1.2, 0.16, 0.06, 0, 0.42, 2.11, dark),                                 // grille
-      boxAt(2.02, 0.06, 0.34, 0, 0.24, 2.0, dark),                                  // front splitter
-      boxAt(1.5, 0.14, 0.2, 0, 0.3, -2.1, dark),                                    // rear diffuser
-      boxAt(0.12, 0.12, 0.2, -0.45, 0.32, -2.16, 0x8d929c),                         // exhausts
-      boxAt(0.12, 0.12, 0.2, 0.45, 0.32, -2.16, 0x8d929c),
-      boxAt(0.22, 0.12, 0.1, -0.95, 1.0, 0.62, color),                              // mirrors
-      boxAt(0.22, 0.12, 0.1, 0.95, 1.0, 0.62, color),
-      boxAt(0.08, 0.12, 1.0, -0.99, 0.7, 1.33, trim),                               // wheel arch flares
-      boxAt(0.08, 0.12, 1.0, 0.99, 0.7, 1.33, trim),
-      boxAt(0.08, 0.12, 1.0, -0.99, 0.7, -1.3, trim),
-      boxAt(0.08, 0.12, 1.0, 0.99, 0.7, -1.3, trim)
+      paintFaces(shell, function (nx, ny) { return ny < -0.5 ? dark : color; }),
+      paintFaces(cabin, function (nx, ny) { return ny > 0.95 ? color : glass; }),
+      boxAt(1.5, 0.5, 0.86, 0, 0.55, 1.33, dark),                                  // inside the arches
+      boxAt(1.5, 0.5, 0.86, 0, 0.55, -1.3, dark),
+      boxAt(1.98, 0.08, 1.7, 0, 0.34, 0.03, dark),                                 // side sills
+      boxAt(1.84, 0.06, 0.4, 0, 1.1, -1.92, trim),                                 // spoiler
+      boxAt(0.08, 0.2, 0.14, -0.6, 0.99, -1.9, dark),
+      boxAt(0.08, 0.2, 0.14, 0.6, 0.99, -1.9, dark),
+      boxAt(1.1, 0.13, 0.06, 0, 0.42, 2.24, dark),                                 // grille
+      boxAt(2.0, 0.05, 0.32, 0, 0.27, 2.12, dark),                                 // front splitter
+      boxAt(1.5, 0.12, 0.2, 0, 0.33, -2.2, dark),                                  // rear diffuser
+      boxAt(0.12, 0.12, 0.2, -0.45, 0.36, -2.24, 0x8d929c),                        // exhausts
+      boxAt(0.12, 0.12, 0.2, 0.45, 0.36, -2.24, 0x8d929c),
+      boxAt(0.2, 0.11, 0.12, -0.93, 1.0, 0.7, color),                              // mirrors
+      boxAt(0.2, 0.11, 0.12, 0.93, 1.0, 0.7, color)
     ];
     var body = new THREE.Mesh(merge(parts), bodyMat);
     var lights = new THREE.Mesh(merge([
-      boxAt(0.46, 0.13, 0.05, -0.62, 0.6, 2.11, 0xfff4cf), boxAt(0.46, 0.13, 0.05, 0.62, 0.6, 2.11, 0xfff4cf),
-      boxAt(0.5, 0.12, 0.05, -0.6, 0.62, -2.11, 0xff2b2b), boxAt(0.5, 0.12, 0.05, 0.6, 0.62, -2.11, 0xff2b2b)
+      boxAt(0.44, 0.11, 0.08, -0.6, 0.6, 2.21, 0xfff4cf), boxAt(0.44, 0.11, 0.08, 0.6, 0.6, 2.21, 0xfff4cf),
+      boxAt(0.52, 0.12, 0.06, -0.56, 0.68, -2.22, 0xff2b2b), boxAt(0.52, 0.12, 0.06, 0.56, 0.68, -2.22, 0xff2b2b)
     ]), lightMat);
     var g = new THREE.Group();
     var tilt = new THREE.Group();     // body roll / pitch / flip around the centre of mass, wheels stay level
@@ -137,23 +193,30 @@ var Car = (function () {
     return g;
   }
 
+  /* tyre (round, smooth-shaded) and a rim with spokes on both faces (they show the wheel turning) */
   function wheelGeometry() {
-    var g = new THREE.CylinderGeometry(WHEEL_R, WHEEL_R, 0.3, 10, 1);
-    g.rotateZ(Math.PI / 2);
-    g = g.toNonIndexed();
-    g.deleteAttribute('uv');
-    g.computeVertexNormals();
-    var n = g.attributes.normal, cnt = n.count, col = new Float32Array(cnt * 3);
-    var tyre = new THREE.Color(0x1a1a1d), rim = new THREE.Color(0xb9bdc6), hub = new THREE.Color(0x6f7480);
-    var p = g.attributes.position;
-    for (var i = 0; i < cnt; i++) {
-      var cap = Math.abs(n.getX(i)) > 0.9;
-      var r = Math.sqrt(p.getY(i) * p.getY(i) + p.getZ(i) * p.getZ(i));
-      var c = cap ? (r < 0.05 ? hub : rim) : tyre;
-      col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+    function part(r, w, colorAt) {
+      var g = new THREE.CylinderGeometry(r, r, w, 16, 1);
+      g.rotateZ(Math.PI / 2);
+      g = g.toNonIndexed();
+      g.deleteAttribute('uv');
+      var p = g.attributes.position, n = g.attributes.normal, cnt = p.count, col = new Float32Array(cnt * 3), c = new THREE.Color();
+      for (var f = 0; f < cnt; f += 3) {
+        var cap = Math.abs(n.getX(f)) > 0.9;
+        var ang = Math.atan2((p.getZ(f) + p.getZ(f + 1) + p.getZ(f + 2)) / 3, (p.getY(f) + p.getY(f + 1) + p.getY(f + 2)) / 3);
+        c.setHex(colorAt(cap, ang));
+        for (var k = 0; k < 3; k++) { col[(f + k) * 3] = c.r; col[(f + k) * 3 + 1] = c.g; col[(f + k) * 3 + 2] = c.b; }
+      }
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      return g;
     }
-    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    return g;
+    var tyre = part(WHEEL_R, 0.3, function () { return 0x1b1b1e; });
+    var rim = part(0.24, 0.31, function (cap, ang) {
+      if (!cap) return 0x2a2c31;
+      var sector = Math.floor(((ang + Math.PI) / (Math.PI * 2)) * 16) % 16;
+      return sector % 3 === 0 ? 0x30333a : 0xc4c8d0;
+    });
+    return merge([tyre, rim]);
   }
 
   var WHEELS = [[-0.9, 1.33, 1], [0.9, 1.33, 1], [-0.9, -1.3, 0], [0.9, -1.3, 0]];   // x, z, steers

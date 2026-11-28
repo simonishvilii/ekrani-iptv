@@ -65,7 +65,7 @@ var World = (function () {
     g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
     var m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }));
     m.scale.setScalar(2000);
-    m.renderOrder = -10;
+    m.renderOrder = 10;   // after the ground and mountains: only the pixels nothing else covered get sky colour
     // the sun: a soft disc
     var cv = document.createElement('canvas'); cv.width = cv.height = 128;
     var x = cv.getContext('2d'), gr = x.createRadialGradient(64, 64, 4, 64, 64, 64);
@@ -127,8 +127,8 @@ var World = (function () {
   }
 
   /* detail textures: fine grain multiplied over the baked colours (mean about 0.9, the material colour
-     lifts it back). Planar world UVs, mipmapped, anisotropic where the TV allows. */
-  function grain(kind, aniso) {
+     lifts it back). Planar world UVs, mipmapped (no anisotropic filtering: too slow on the TV). */
+  function grain(kind) {
     var S = 256, cv = document.createElement('canvas'); cv.width = cv.height = S;
     var x = cv.getContext('2d'), img = x.createImageData(S, S), d = img.data, rnd = seeded(kind === 'road' ? 3 : 5);
     var i, v;
@@ -158,7 +158,6 @@ var World = (function () {
     }
     var tex = new THREE.CanvasTexture(cv);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.anisotropy = aniso || 1;
     return tex;
   }
 
@@ -280,11 +279,10 @@ var World = (function () {
     return mergeGeos(parts);
   }
 
-  function build(scene, tr, aniso) {
-    var a = Math.min(4, aniso || 1);
-    var mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, map: grain('road', a) });
+  function build(scene, tr) {
+    var mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, map: grain('road') });
     mat.color.setScalar(1.1);
-    var gmat = new THREE.MeshBasicMaterial({ vertexColors: true, map: grain('grass', a) });
+    var gmat = new THREE.MeshBasicMaterial({ vertexColors: true, map: grain('grass') });
     gmat.color.setScalar(1.14);
     var skyGroup = sky();
     scene.add(skyGroup);
