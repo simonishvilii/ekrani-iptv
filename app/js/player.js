@@ -12,7 +12,7 @@
   var retries = 0, triedAlt = false, quick = false;
   var warmUrl = null;       // last channel started at boot before the playlist / UI were ready
   var netWait = null;       // {t} while waiting for the network to come back (TV just switched on)
-  var hls = null, hlsFixed = false;   // live HLS through hls.js (webOS): see attach()
+  var hls = null, hlsFixed = false, hlsBroken = false;   // live HLS through hls.js (webOS): see attach()
   var ovState = 'none';     // none | info | list | groups | epg
   var ovList = null;        // VList of the open list / programme panel
   var browse = null;        // group shown in the channel list overlay {gid, name, list}
@@ -162,7 +162,11 @@
     maxLiveSyncPlaybackRate: 1,    // never speed up to catch up
     maxBufferLength: 30,
     maxMaxBufferLength: 60,
-    backBufferLength: 10           // the TV's memory: keep only 10 s of what was played
+    backBufferLength: 10,          // the TV's memory: keep only 10 s of what was played
+    // a quick channel change: the first segment is played while it downloads (fetch stream) instead of after it,
+    // and it is requested together with the playlist
+    progressive: true,
+    startFragPrefetch: true
   };
 
   function hlsWanted(url, key) {
@@ -181,14 +185,17 @@
 
   /* point the <video> at a stream, through hls.js or directly */
   function attach(url, viaHls) {
-    dropHls();
+    if (!viaHls || hlsBroken) dropHls();
     if (!viaHls) {
       video.src = url;
       try { video.load(); } catch (e) { /* ignore */ }
       return;
     }
-    var h = hls = new Hls(HLS_CFG);
     hlsFixed = false;
+    // the next channel on the same hls.js: its worker and decoder setup stay (no new instance to build for every channel)
+    if (hls) { hls.loadSource(url); return; }
+    hlsBroken = false;
+    var h = hls = new Hls(HLS_CFG);
     h.on(Hls.Events.ERROR, function (ev, d) { if (hls === h) onHlsError(d); });
     h.attachMedia(video);
     h.loadSource(url);
@@ -196,6 +203,7 @@
 
   function onHlsError(d) {
     if (!d || !d.fatal) return;   // hls.js retries / skips on its own
+    if (!(d.type === Hls.ErrorTypes.MEDIA_ERROR && !hlsFixed)) hlsBroken = true;   // the next load starts a new hls.js
     console.warn('hls.js', d.type, d.details);
     if (!cur) { if (warmUrl) { warmUrl = null; dropHls(); } return; }   // boot start: playLive loads again
     if (d.type === Hls.ErrorTypes.NETWORK_ERROR) { onError(true); return; }   // same retries as the TV's player
